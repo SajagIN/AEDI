@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -153,8 +154,14 @@ export default function CaseExplorer({ health, split, setSplit }:
             {/* signals */}
             <Card>
               <CardHeader>
-                <CardTitle>Deterministic risk signals</CardTitle>
-                <CardDescription>Computed by risk_signals.py. The model never gets a vote on these.</CardDescription>
+                <CardTitle>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="cursor-default border-b border-dashed border-border/60 pb-0.5">Deterministic risk signals</span>
+                    </TooltipTrigger>
+                    <TooltipContent>Computed by risk_signals.py. The model never gets a vote on these.</TooltipContent>
+                  </Tooltip>
+                </CardTitle>
               </CardHeader>
               <CardContent className="grid gap-3 sm:grid-cols-3">
                 {[
@@ -173,8 +180,14 @@ export default function CaseExplorer({ health, split, setSplit }:
             {/* evidence */}
             <Card>
               <CardHeader>
-                <CardTitle>Evidence submitted</CardTitle>
-                <CardDescription>IDs assigned by the pipeline, not the model — it can only cite what exists.</CardDescription>
+                <CardTitle>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="cursor-default border-b border-dashed border-border/60 pb-0.5">Evidence submitted</span>
+                    </TooltipTrigger>
+                    <TooltipContent>IDs are assigned by the pipeline. The model can only cite one that exists.</TooltipContent>
+                  </Tooltip>
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="mb-4 flex flex-wrap gap-1.5">
@@ -208,8 +221,14 @@ export default function CaseExplorer({ health, split, setSplit }:
             {/* narrative */}
             <Card>
               <CardHeader>
-                <CardTitle>Merchant narrative</CardTitle>
-                <CardDescription>Untrusted input — authored by the party with money on the line.</CardDescription>
+                <CardTitle>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="cursor-default border-b border-dashed border-border/60 pb-0.5">Merchant narrative</span>
+                    </TooltipTrigger>
+                    <TooltipContent>Untrusted input — authored by the party with money on the line.</TooltipContent>
+                  </Tooltip>
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <blockquote className="rounded-r-2xl border-l-[3px] border-signal-info bg-secondary/50 px-4 py-3 text-[13px] italic leading-relaxed text-muted-foreground">

@@ -375,7 +375,7 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
                     <span>status <b className="font-medium text-foreground">{payment.status}</b></span>
                   </div>
                   <p className="mt-2 text-[11.5px] text-muted-foreground">
-                    Re-fetched from Razorpay server-side — the browser's word for it was not trusted.
+                    Re-fetched server-side.
                   </p>
                 </div>
               )}
@@ -454,9 +454,8 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
                 </div>
                 {missing.length > 0 && (
                   <p className="mt-2 text-[12px] text-signal-bad">
-                    Missing {missing.join(", ")} — the pipeline will mark this{" "}
-                    <span className="font-mono">evidence_incomplete_for_reason_code</span>. Leave it
-                    that way on purpose to show the deterministic guard firing.
+                    Missing {missing.join(", ")} — expect{" "}
+                    <span className="font-mono">evidence_incomplete_for_reason_code</span>.
                   </p>
                 )}
               </div>
@@ -493,9 +492,6 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
                 <Sparkles size={16} className="text-signal-alt" />
                 <CardTitle>3 · AEDI decides</CardTitle>
               </div>
-              <CardDescription>
-                The same bounded agent loop the batch pipeline runs, on this live case.
-              </CardDescription>
             </CardHeader>
             <CardContent>
               <Button onClick={decide} disabled={busy === "decide" || !dispute}>
@@ -590,8 +586,7 @@ ${JSON.stringify(decision.razorpay_request.body ?? {}, null, 2)}`}
                 </span>
                 <CardTitle>Live activity</CardTitle>
               </div>
-              <CardDescription>Server-side event feed, polled every 2s.</CardDescription>
-            </CardHeader>
+                          </CardHeader>
             <CardContent className="max-h-[520px] overflow-y-auto">
               {events.length === 0 && (
                 <p className="py-6 text-center text-[12.5px] text-muted-foreground">

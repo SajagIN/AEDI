@@ -33,7 +33,7 @@ export default function Adversarial({ health }: { health: Health }) {
             <CardTitle>Defense-only posture</CardTitle>
           </div>
           <CardDescription>
-            Fixed, publicly-documented patterns as regression tests. No novel attack generation.
+            Fixed public patterns as regression tests. No novel attack generation.
           </CardDescription>
         </CardHeader>
       </Card>
