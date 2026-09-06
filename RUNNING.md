@@ -106,7 +106,8 @@ delete `.run_suite.lock` and retry.
 ## 4. Getting an API key
 
 A free key from [console.groq.com](https://console.groq.com) is enough. Put it
-in `.env` as `GROQ_API_KEY=gsk_...`.
+in `.env` — `cp .env.example .env` first; that file already ships the
+correctly-named placeholder, so you only replace its value.
 
 The free tier's daily token cap is enforced **per account**, not per key — extra
 keys generated from the same account share one pool and only help spread
