@@ -1,29 +1,25 @@
 """
-Evaluation harness — structure only for now, per the brief: metrics land
-once the dataset and held-out split exist (Day 2-4 of the plan).
+Evaluation harness — dev split only. held_out stays refused until code
+freeze (brief §6a: opened once, on freeze day, never touched for tuning).
 
-MANDATORY operational rule (brief §6a): the held-out file is opened exactly
-once, on Day 4, after code freeze. Every number produced before then is a
-dev-set number. This module enforces that split at the file level — it
-takes a `--split` flag and refuses to let held-out be the default, so
-running this script with no arguments can never accidentally touch it.
-
-Planned outputs once wired up:
+Reports, per brief §6a/§6b/§6d:
 - Confusion matrix over {contest, accept_liability, manual_review}.
-- Precision/recall for `contest` and for `accept_liability` specifically —
-  NOT overall accuracy. `manual_review` is an abstention, not a class.
-- Coverage: share of cases decided automatically (not manual_review) vs
-  routed to review. Reported next to precision/recall so a system that
-  abstains on everything can't look artificially good.
-- Expected cost per 100 cases, from the false-positive/false-negative cost
-  model (brief §6b) — rupee cost per error direction, stated as an
-  assumption in the README, not just an error rate.
-- Baseline comparison: rules-only and always-manual-review, same held-out
-  set (brief §6d).
+- Precision/recall for `contest` and `accept_liability` specifically -
+  NOT overall accuracy, and NOT for manual_review (an abstention, not a
+  class with its own precision/recall target).
+- Coverage: share of cases decided automatically (not manual_review) -
+  reported so a system that abstains on everything can't look artificially
+  good on precision alone.
+- Expected cost per 100 cases, from an explicit false-positive/
+  false-negative cost model, with the cost assumptions stated in the
+  output itself, not just in a README someone might not read.
+- A rules-only baseline (§6d): always predict per evidence_sufficiency
+  alone (sufficient -> contest, else -> accept_liability, never
+  manual_review), scored the same way, so precision/recall have a
+  reference point.
 
-This file intentionally does not implement any of that yet — the dataset
-and ground-truth labels (dataset/LABELLING_RUBRIC.md) don't exist yet.
-Wiring this up is Day 2-3 work, done against dev only.
+Usage:
+    python code/evaluation/main.py --split dev --predictions dataset/dev/output.csv
 """
 
 import argparse
@@ -52,6 +48,15 @@ COST_FALSE_POSITIVE_INR = 800
 # for completeness, kept clearly separate from the mandatory FP/FN metric
 # above so it's not confused with an error cost.
 COST_MANUAL_REVIEW_INR = 150
+
+# Third, bonus/exploratory metric — NOT part of the brief's mandatory
+# cost model (§6b prices exactly two error directions). Models the
+# unpriced exposure from a case that had a real risk signal but got
+# auto-decided anyway (a "bypassed review") as a fraction of the
+# transaction amount, since that exposure scales with what's at stake,
+# unlike the flat manual_review labor cost above. A stated assumption,
+# not a measured one.
+BYPASSED_REVIEW_EXPOSURE_RATE = 0.10
 
 DECISION_VALUES = ["contest", "accept_liability", "manual_review"]
 POSITIVE_CLASSES = ["contest", "accept_liability"]  # manual_review excluded - see module docstring
@@ -119,14 +124,29 @@ def expected_cost(predictions: dict, labels: dict, amounts: dict) -> dict:
     # high-risk case), so it's counted and surfaced rather than silently
     # folded into "correct" just because it doesn't match either FP/FN
     # definition.
-    n_bypassed_review = sum(
-        1 for case_id, actual in labels.items()
+    bypassed_ids = [
+        case_id for case_id, actual in labels.items()
         if actual == "manual_review" and predictions.get(case_id) in ("contest", "accept_liability")
+    ]
+    # Bonus/exploratory metric, NOT part of the brief's mandatory cost
+    # model (§6b defines exactly two error directions) and deliberately
+    # kept out of total_cost_inr/cost_per_100_inr above, so the required
+    # number stays exactly what the brief asked for. Modeled as a fraction
+    # of the transaction amount rather than a flat fee, because unlike the
+    # manual_review labor cost (a known, fixed analyst-time cost), the
+    # exposure from skipping a warranted review scales with what's at
+    # stake in the case - a stated assumption, not a measured one, since
+    # real-world outcomes for bypassed reviews aren't observable in this
+    # dataset.
+    bypassed_review_exposure_inr = sum(
+        float(amounts.get(case_id, 0)) * BYPASSED_REVIEW_EXPOSURE_RATE for case_id in bypassed_ids
     )
     return {
         "n_scored": n_scored, "total_cost_inr": total_cost, "cost_per_100_inr": per_100,
         "n_false_positive": n_fp, "n_false_negative": n_fn, "n_manual_review": n_review,
-        "n_bypassed_review": n_bypassed_review,
+        "n_bypassed_review": len(bypassed_ids),
+        "bypassed_review_exposure_inr": bypassed_review_exposure_inr,
+        "bypassed_review_exposure_per_100_inr": (bypassed_review_exposure_inr / n_scored * 100) if n_scored else 0.0,
     }
 
 
@@ -181,8 +201,12 @@ def report(name: str, predictions: dict, labels: dict, amounts: dict) -> None:
           f"manual_review={cost['n_manual_review']} x INR{COST_MANUAL_REVIEW_INR})")
     if cost["n_bypassed_review"]:
         print(f"  WARNING: {cost['n_bypassed_review']} case(s) had actual=manual_review but were "
-              f"auto-decided anyway - a real risk not priced in the cost above (brief only prices "
-              f"the contest/accept_liability error directions). Not hidden, just not double-defined.")
+              f"auto-decided anyway - not priced in the required cost above (brief only prices "
+              f"the contest/accept_liability error directions).")
+        print(f"  BONUS (not part of the brief's cost model, exploratory only): modeling that "
+              f"exposure at {BYPASSED_REVIEW_EXPOSURE_RATE:.0%} of transaction amount gives "
+              f"INR {cost['bypassed_review_exposure_per_100_inr']:.0f} per 100 cases in unpriced risk "
+              f"- reported separately so it's never confused with the required, brief-defined number.")
     if n < 30:
         print(f"  NOTE: small sample (n={n}) - treat these rates as directional, not final.")
 
@@ -195,17 +219,65 @@ def main() -> None:
     )
     parser.add_argument("--dataset-dir", default="dataset")
     parser.add_argument("--predictions", default=None, help="Path to the pipeline's output CSV")
+    parser.add_argument(
+        "--i-am-opening-held-out-for-real", action="store_true",
+        help="Required to run --split held_out. Forces a deliberate choice, not a "
+             "flag flipped absent-mindedly on data that's supposed to be opened once.",
+    )
     args = parser.parse_args()
 
-    if args.split == "held_out":
-        print(
-            "Refusing to run: held-out evaluation is not wired up yet, and "
-            "per the brief it must only be opened once, on Day 4, after code "
-            "freeze. This guard stays until that's genuinely true."
-        )
-        raise SystemExit(1)
+    dataset_dir = REPO_ROOT / args.dataset_dir
+    marker_path = dataset_dir / "held_out" / ".opened_at_commit"
 
-    print("Dev-set evaluation not yet implemented — dataset/labels land Day 2.")
+    if args.split == "held_out":
+        if not args.i_am_opening_held_out_for_real:
+            print(
+                "Refusing to run: pass --i-am-opening-held-out-for-real to confirm this "
+                "is the genuine, one-time open - not something to pass casually."
+            )
+            raise SystemExit(1)
+        if marker_path.exists():
+            print(f"NOTE: held_out was already opened once - see {marker_path}")
+            print(marker_path.read_text(encoding="utf-8"))
+            print("Re-running is for display purposes only; the brief's discipline is "
+                  "about not TUNING after seeing this, not about a technical rerun block.")
+
+    split_dir = dataset_dir / args.split
+    cases = load_csv(split_dir / "cases.csv")
+    labels_rows = load_csv(split_dir / "labels.csv")
+    labels = {r["case_id"]: r["ground_truth_decision"] for r in labels_rows}
+    amounts = {r["case_id"]: r["amount"] for r in cases}
+    req_rows = load_csv(dataset_dir / "reason_code_requirements.csv")
+    ds_requirements = {r["reason_code"]: r for r in req_rows}
+
+    if args.predictions:
+        pred_rows = load_csv(REPO_ROOT / args.predictions)
+        predictions = {r["case_id"]: r["decision"] for r in pred_rows}
+        report(f"Agent ({args.split})", predictions, labels, amounts)
+    else:
+        print(f"No --predictions given - run code/main.py against {args.split}/cases.csv first, "
+              "or pass --predictions explicitly. Showing baselines only.")
+
+    report("Baseline: rules-only", baseline_predictions(cases, ds_requirements), labels, amounts)
+    report("Baseline: always manual_review", always_manual_review_predictions(cases), labels, amounts)
+
+    if args.split == "held_out" and not marker_path.exists():
+        import datetime
+        import subprocess
+        try:
+            commit = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=REPO_ROOT, capture_output=True, text=True, check=True
+            ).stdout.strip()
+        except Exception:
+            commit = "unknown"
+        marker_path.write_text(
+            f"held_out opened for the first time at {datetime.datetime.now().isoformat()}\n"
+            f"git commit at open time: {commit}\n"
+            f"This file is proof of when held_out was first opened - committing it to the "
+            f"repo makes the open time verifiable in git log, not just claimed in prose.\n",
+            encoding="utf-8",
+        )
+        print(f"\nWrote {marker_path} - commit this file to make the open time verifiable.")
 
 
 if __name__ == "__main__":

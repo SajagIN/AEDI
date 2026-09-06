@@ -1,7 +1,7 @@
 """
-A E D I — main entry point.
+Chargeback Evidence Responder — main entry point.
 
-AI Risk Manager, one class of loss: chargebacks. Reads a
+Track 2 (AI Risk Manager), one class of loss: chargebacks. Reads a
 chargeback case (reason code, transaction, merchant-submitted evidence,
 merchant narrative, merchant history) and decides whether the evidence
 supports contesting the chargeback, supports accepting liability, or is
@@ -138,6 +138,31 @@ from structured fields alone), weighing all the signals together into one decisi
 justification that names the specific evidence relied on. A case with sufficient evidence and no risk \
 flags does not automatically mean contest — read the narrative before deciding.
 
+DEFAULT RULE: if amount_anomaly_flag or merchant_repeat_pattern_flag comes back true from the tools, set \
+decision=manual_review. Treat this as your starting position for that case, not a suggestion — a real \
+risk signal exists specifically to catch cases where the paperwork looks clean but the pattern still \
+warrants a human. "Evidence is sufficient" is NOT by itself a reason to depart from this default — \
+sufficiency and risk are different questions, and this rule exists precisely because they can disagree.
+
+You may still choose contest or accept_liability instead of manual_review when a risk flag is present, \
+but only when something SPECIFIC and unusual about this exact case makes the flag misleading here — not \
+because the evidence happens to check out, since that's the normal case this rule is already accounting \
+for. If you depart from the default, `reason` must open by naming the flag and stating the specific case \
+fact that overrides it (e.g. "merchant_repeat_pattern is flagged, but ev_1 and ev_2 independently confirm \
+X which is not the kind of case the pattern flag is about"). A reason that doesn't mention the flag at \
+all is not an acceptable justification for departing from the default — it means the flag was overlooked, \
+not overridden.
+
+Worked example, so this isn't abstract: a case has fully sufficient evidence for its reason code (both \
+required items present, nothing missing) AND merchant_repeat_pattern_flag=true. The WRONG output here is \
+decision=contest with a reason that only discusses the evidence ("ev_1 and ev_2 satisfy the requirement, \
+therefore contest") — that reason never mentions the flag, which means it was never actually weighed. The \
+RIGHT output is decision=manual_review, with reason opening on the flag itself: "merchant_repeat_pattern \
+is flagged for this merchant; despite ev_1 and ev_2 meeting the evidence requirement, the repeat-dispute \
+pattern warrants human review before this is auto-contested." Sufficient evidence alone never settles a \
+case where a risk flag is present — it settles the evidence question, not the risk question, and both \
+have to be answered.
+
 reason must name the SPECIFIC evidence you relied on (e.g. "ev_2 is a signed delivery confirmation \
 matching the transaction date and address; reason code 13.1 requires exactly this"), not a generic \
 restatement of the decision.
@@ -174,9 +199,13 @@ Return JSON only — no markdown fences, no extra keys."""
 
 class KeyPool:
     """Round-robins across every GROQ_API_KEY / GROQ_API_KEY_2 / GROQ_API_KEY_3 ... found
-    in the environment, so load (and each account's separate daily quota) is spread across
-    all of them instead of hammering one key into its cap. Ported as-is from the August
-    Orchestrate build — generic, no domain coupling."""
+    in the environment, spreading per-minute rate-limit load across all of them instead of
+    hammering one key. Does NOT multiply the daily token cap by itself — Groq's daily quota
+    is per ACCOUNT, so multiple keys generated from the same account share one pool
+    (confirmed directly from the API: same-account keys show the identical `organization`
+    ID when rate-limited, see NOTES.md). Real daily-cap headroom only comes from keys on
+    genuinely separate accounts. Ported as-is from the August Orchestrate build — generic,
+    no domain coupling."""
 
     def __init__(self):
         keys = []
@@ -493,8 +522,22 @@ def _execute_tool(name: str, ctx: dict) -> dict:
     another case's or merchant's data. The tool's authority is the
     pipeline's own ground truth, not the model's claim about which record
     it wants. Ported as-is in spirit from the August build."""
+    # Third attempt at the manual_review-coverage gap (see NOTES.md,
+    # ENGINEERING_DECISIONS.md): two prompt-only attempts that stated the
+    # override rule once, in the abstract, in the system prompt, weren't
+    # reliably followed — a real risk flag would come back true and the
+    # model would still just... proceed as if it hadn't. Different tactic
+    # this time: repeat the instruction INLINE, attached to the actual
+    # flag value at the moment the model reads it, instead of only in a
+    # system-prompt paragraph written before the model has seen any real
+    # data. Proximity to the fact, not just louder wording.
+    RISK_FLAG_REMINDER = (
+        "This flag is TRUE for this case. Per your instructions, manual_review is your "
+        "default decision when this is true — evidence being otherwise sufficient is not, "
+        "by itself, a reason to override it."
+    )
     if name == "lookup_case_evidence":
-        return {
+        result = {
             "transaction_summary": ctx["transaction_summary"],
             "minimum_evidence_required": ctx["minimum_evidence_required"],
             "merchant_narrative": ctx["merchant_narrative"],
@@ -503,11 +546,17 @@ def _execute_tool(name: str, ctx: dict) -> dict:
             "missing_evidence_types": ctx["missing_evidence_types"],
             "amount_anomaly_flag": ctx["amount_anomaly_flag"],
         }
+        if ctx["amount_anomaly_flag"]:
+            result["amount_anomaly_flag_reminder"] = RISK_FLAG_REMINDER
+        return result
     if name == "lookup_merchant_history":
-        return {
+        result = {
             "merchant_history_summary": ctx["merchant_history_summary"],
             "merchant_repeat_pattern_flag": ctx["merchant_repeat_pattern_flag"],
         }
+        if ctx["merchant_repeat_pattern_flag"]:
+            result["merchant_repeat_pattern_flag_reminder"] = RISK_FLAG_REMINDER
+        return result
     return {"error": f"unknown tool {name}"}
 
 
@@ -586,37 +635,65 @@ def _recover_failed_generation(exc: Exception):
         return None
 
 
+FORCE_CLASSIFY_NUDGE = (
+    "Your previous response was not a valid classify_chargeback call — it was empty, "
+    "incomplete, or tried to call a tool that is not available this round. "
+    "classify_chargeback is the ONLY action available now. Respond by calling it, with "
+    "complete values for all six fields: decision, evidence_sufficiency, risk_flags, "
+    "reason, confidence, cited_evidence_ids."
+)
+
+
 def _run_agent_turn(pool: KeyPool, cache: ResponseCache, base_messages: list, ctx: dict,
-                     max_rounds: int = 2) -> tuple:
+                     max_rounds: int = 2, force_local_retries: int = 3) -> tuple:
     """Bounded agentic loop: round 1 offers all 3 tools with tool_choice="auto"
     — the model can call lookup_case_evidence and/or lookup_merchant_history
     to gather signal, or go straight to classify_chargeback if the case is
     fully decidable already. Round 2 (the last allowed round) forces
     tool_choice to classify_chargeback specifically, guaranteeing
     termination with a structured answer within a hard cap of max_rounds.
-    Returns (result_dict, key_name_used_for_final_call_or_None)."""
+    Returns (result_dict, key_name_used_for_final_call_or_None).
+
+    The forced round gets its own local retry loop (force_local_retries), not
+    just the outer per-case retry in analyze_case. This matters because a
+    retry with an IDENTICAL request at temperature=0.1 tends to reproduce the
+    same failure rather than recover from it — observed directly on the dev
+    set's first real run (NOTES.md, Day 3): the model would repeat the exact
+    same wrong tool call 3 times in a row against an unchanged prompt. Each
+    local retry here appends FORCE_CLASSIFY_NUDGE, which actually changes the
+    request, instead of resending the same one and hoping for a different
+    result."""
     messages = list(base_messages)
     last_key_name = None
     for round_num in range(max_rounds):
         force_classify = round_num == max_rounds - 1
-        kwargs = dict(model=MODEL, messages=messages, temperature=0.1, max_tokens=1200,
-                      extra_body={"reasoning_format": "hidden"})
-        if force_classify:
-            kwargs["tools"] = [CLASSIFY_CHARGEBACK_TOOL]
-            kwargs["tool_choice"] = {"type": "function", "function": {"name": "classify_chargeback"}}
-        else:
-            kwargs["tools"] = AGENT_TOOLS
-            kwargs["tool_choice"] = "auto"
-        try:
-            norm, key_name = _call_llm(pool, cache, **kwargs)
-            if key_name:
-                last_key_name = key_name
-        except Exception as e:
+        local_attempts = force_local_retries if force_classify else 1
+
+        norm = None
+        for local_attempt in range(local_attempts):
+            kwargs = dict(model=MODEL, messages=messages, temperature=0.1,
+                          max_tokens=3800 if force_classify else 1500,
+                          extra_body={"reasoning_format": "hidden"})
             if force_classify:
-                recovered = _recover_failed_generation(e)
-                if recovered is not None:
-                    return recovered, last_key_name
-            raise
+                kwargs["tools"] = [CLASSIFY_CHARGEBACK_TOOL]
+                kwargs["tool_choice"] = {"type": "function", "function": {"name": "classify_chargeback"}}
+            else:
+                kwargs["tools"] = AGENT_TOOLS
+                kwargs["tool_choice"] = "auto"
+            try:
+                norm, key_name = _call_llm(pool, cache, **kwargs)
+                if key_name:
+                    last_key_name = key_name
+                break
+            except Exception as e:
+                if force_classify:
+                    recovered = _recover_failed_generation(e)
+                    if recovered is not None:
+                        return recovered, last_key_name
+                    if local_attempt < local_attempts - 1:
+                        messages = messages + [{"role": "user", "content": FORCE_CLASSIFY_NUDGE}]
+                        continue
+                raise
 
         if not norm["tool_calls"]:
             raw = (norm["content"] or "").strip()
@@ -642,10 +719,14 @@ def _run_agent_turn(pool: KeyPool, cache: ResponseCache, base_messages: list, ct
     raise RuntimeError("agent loop exceeded max_rounds without classify_chargeback")
 
 
-def analyze_case(pool: KeyPool, cache: ResponseCache, row: dict, ctx: dict, retries: int = 6) -> dict:
+def analyze_case(pool: KeyPool, cache: ResponseCache, row: dict, ctx: dict, retries: int = 3) -> dict:
     """Runs the agent loop for one case with retry-across-keys on failure;
     validates the result has every required field before returning it, and
-    degrades to a safe fallback row if all retries are exhausted."""
+    degrades to a safe fallback row if all retries are exhausted. retries=3
+    here (not 6) because the forced round now has its own internal retry
+    with a corrective nudge (see _run_agent_turn) — this outer loop is a
+    backstop for whole-attempt failures (network, key exhaustion), not the
+    primary recovery path for a malformed forced-round response anymore."""
     base_messages = build_messages(row, ctx)
     for attempt in range(retries):
         try:
@@ -746,14 +827,22 @@ def process_cases(cases_path: Path, dataset_dir: Path, output_path: Path) -> Non
 
 
 def main() -> None:
+    """--input and --output (like --dataset-dir) are always resolved
+    against REPO_ROOT, never the invoking shell's cwd. This used to be
+    inconsistent — --output was REPO_ROOT-relative but --input was
+    cwd-relative, in the same command — and directly caused two real bugs
+    in one session: a case run silently writing outside the project when
+    invoked from code/, and a fallback-retry re-running all 100 cases
+    from scratch because resume detection looked in the wrong place. Both
+    flags now behave the same way on purpose."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset-dir", default="dataset")
-    parser.add_argument("--input", default=None)
-    parser.add_argument("--output", default="dataset/output.csv")
+    parser.add_argument("--input", default=None, help="Resolved against the repo root, not cwd.")
+    parser.add_argument("--output", default="dataset/output.csv", help="Resolved against the repo root, not cwd.")
     args = parser.parse_args()
 
     dataset_dir = REPO_ROOT / args.dataset_dir
-    cases_path = Path(args.input) if args.input else dataset_dir / "cases.csv"
+    cases_path = REPO_ROOT / args.input if args.input else dataset_dir / "cases.csv"
     output_path = REPO_ROOT / args.output
 
     process_cases(cases_path, dataset_dir, output_path)
