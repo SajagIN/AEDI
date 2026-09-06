@@ -1,7 +1,7 @@
 """
 A E D I — main entry point.
 
-Track 2 (AI Risk Manager), one class of loss: chargebacks. Reads a
+AI Risk Manager, one class of loss: chargebacks. Reads a
 chargeback case (reason code, transaction, merchant-submitted evidence,
 merchant narrative, merchant history) and decides whether the evidence
 supports contesting the chargeback, supports accepting liability, or is

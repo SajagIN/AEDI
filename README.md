@@ -1,6 +1,6 @@
 # A E D I
 
-**Razorpay AI Buildathon  — Track 2: AI Risk Manager**
+**AI Risk Manager**
 
 One class of loss: **chargebacks.** Given a chargeback case — reason code,
 transaction, the merchant's submitted evidence, and their free-text
@@ -92,7 +92,7 @@ set is opened once — see `NOTES.md` and `code/evaluation/main.py`.)*
 
 ## What broke and how I fixed it
 
-See `NOTES.md` — kept live live, per Razorpay's explicit ask for this.
+See `NOTES.md` — kept live.
 
 ## Setup
 
