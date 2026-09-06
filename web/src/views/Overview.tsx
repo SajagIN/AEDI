@@ -104,12 +104,12 @@ export default function Overview({ split }: { split: string }) {
           <h2 className="font-display text-[clamp(30px,4vw,44px)] leading-none">What this is worth</h2>
           <div className="flex gap-3">
             <label>
-              <div className="dateline mb-2 text-muted-foreground/50">Disputes / mo</div>
+              <div className="dateline mb-2 text-muted-foreground/50">Disputes / month</div>
               <Input type="number" value={vol} min={1} step={100} className="h-9 w-28"
                 onChange={(e) => setVol(Math.max(1, +e.target.value || 0))} />
             </label>
             <label>
-              <div className="dateline mb-2 text-muted-foreground/50">Mins / review</div>
+              <div className="dateline mb-2 text-muted-foreground/50">Minutes / review</div>
               <Input type="number" value={mins} min={1} className="h-9 w-24"
                 onChange={(e) => setMins(Math.max(1, +e.target.value || 0))} />
             </label>
@@ -139,11 +139,16 @@ export default function Overview({ split }: { split: string }) {
           <>
             <div className="grid gap-x-8 gap-y-12 sm:grid-cols-2 lg:grid-cols-5">
               {[
-                { l: "Auto-decided", v: auto, f: int, t: "plain" },
-                { l: "To a human", v: reviewed, f: int, t: "plain" },
-                { l: "Hours freed", v: hours, f: int, t: "good" },
-                { l: "Cost avoided", v: saved, f: inr, t: "good" },
-                { l: "Risk carried", v: exposure, f: inr, t: "warn" },
+                { l: "Auto-decided", v: auto, f: int, t: "plain",
+                  m: `${pct(agent.coverage)} of ${int(vol)}` },
+                { l: "To a human", v: reviewed, f: int, t: "plain",
+                  m: `${pct(1 - agent.coverage)} of ${int(vol)}` },
+                { l: "Hours freed", v: hours, f: int, t: "good",
+                  m: `${mins} min × ${int(auto)}` },
+                { l: "Cost avoided", v: saved, f: inr, t: "good",
+                  m: `${inr(perCaseToday - perCaseAgent)} × ${int(vol)}` },
+                { l: "Risk carried", v: exposure, f: inr, t: "warn",
+                  m: `${inr(exposure / vol)} × ${int(vol)}` },
               ].map((x, i) => (
                 <div key={x.l}>
                   <div className={`font-display text-[clamp(30px,3.4vw,42px)] leading-[0.9] ${
@@ -151,15 +156,19 @@ export default function Overview({ split }: { split: string }) {
                     <Ticker value={x.v} format={x.f} delay={i * 0.06} />
                   </div>
                   <div className="dateline mt-3 text-muted-foreground/60">{x.l}</div>
+                  {/* The multiplication, stated. Without it a six-figure total
+                      invites the reader to assume the input was rupees. */}
+                  <div className="mt-1.5 font-mono text-[10.5px] tabular-nums text-muted-foreground/45">{x.m}</div>
                 </div>
               ))}
             </div>
 
             {/* The one sentence worth keeping: without it the last number
                 reads like a cost of the agent rather than a risk it takes. */}
-            <p className="mt-10 max-w-[54ch] text-[12.5px] leading-relaxed text-muted-foreground">
-              <span className="text-signal-warn">Risk carried</span> is modelled exposure from risky
-              cases the agent decided alone. Deliberately not netted off the saving.
+            <p className="mt-10 max-w-[62ch] text-[12.5px] leading-relaxed text-muted-foreground">
+              Reviewing every dispute by hand costs {inr(perCaseToday)} a case; AEDI averages{" "}
+              {inr(perCaseAgent)}. <span className="text-signal-warn">Risk carried</span> is modelled
+              exposure from risky cases it decided alone — deliberately not netted off the saving.
             </p>
           </>
         )}
