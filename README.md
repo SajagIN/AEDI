@@ -9,7 +9,7 @@
 
   ![Posture](https://img.shields.io/badge/POSTURE-DEFENSE--ONLY-2f6fed?style=for-the-badge)
 
-  ![Tests](https://img.shields.io/badge/TESTS-33_PASSING-2ea44f?style=for-the-badge)
+  ![Tests](https://img.shields.io/badge/TESTS-46_PASSING-2ea44f?style=for-the-badge)
   ![Adversarial defense](https://img.shields.io/badge/ADVERSARIAL_DEFENSE-100%25-2ea44f?style=for-the-badge)
   ![False positives](https://img.shields.io/badge/FALSE_POSITIVES-ZERO-2ea44f?style=for-the-badge)
 
@@ -45,6 +45,32 @@ honestly, including where the results disagree with each other. See
 document and [ENGINEERING_DECISIONS.md](ENGINEERING_DECISIONS.md) for the
 reasoning behind every non-obvious choice, including the bugs that were
 found on live runs and how they were fixed.
+
+---
+
+## THE NAME
+
+**AEDI** — pronounced *EYE-dee* (or *AY-dee*).
+
+```
+                     A E D I
+                     │ │ │ └── Injections
+                     │ │ └──── Defense
+                     │ └────── Evidence
+                     └──────── Automated
+```
+
+*Automated Evidence, Defense against Injections* — the two halves of what this
+system actually is. It automates the evidence decision on a chargeback, and it
+treats the merchant's own text as hostile while doing it.
+
+The name is rooted in **aegis**, the shield: the defensive posture isn't a
+feature bolted onto a classifier, it's the reason the classifier is trustworthy
+enough to automate anything at all. A model that decides where money goes, fed
+free text written by the party with a financial stake in the outcome, needs a
+shield before it needs accuracy — which is why the adversarial regression suite
+reports a control false-positive rate next to its defense rate, and why
+`_execute_tool()` refuses to trust a single identifier the model supplies.
 
 **Contents:** [Quick start](#quick-start) · [Defense-only posture](#defense-only-posture) ·
 [Security](#security) · [Threat model](#the-threat-model) ·

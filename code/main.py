@@ -818,7 +818,9 @@ def process_cases(cases_path: Path, dataset_dir: Path, output_path: Path) -> Non
         print(f"  [{len(done_ids) + i}/{len(rows)}] {row['case_id']} -> {result['decision']}", flush=True)
 
         with open(output_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=OUTPUT_COLUMNS)
+            # lineterminator="\n" so a regenerated output.csv is byte-comparable
+            # against the committed one (.gitattributes pins eol=lf).
+            writer = csv.DictWriter(f, fieldnames=OUTPUT_COLUMNS, lineterminator="\n")
             writer.writeheader()
             for r in rows:
                 if r["case_id"] in results_by_id:

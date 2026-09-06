@@ -144,7 +144,7 @@ def _run() -> None:
         status = "FLAGGED" if result["flagged_injection"] else "not flagged"
         print(f"  [{fx['id']}] {kind}/{fx['category']}: {status}", flush=True)
         with open(RESULTS_PATH, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=FIELDNAMES)
+            writer = csv.DictWriter(f, fieldnames=FIELDNAMES, lineterminator="\n")
             writer.writeheader()
             writer.writerows(rows)
 

@@ -144,7 +144,7 @@ different ID, structurally, not by convention.
 
 - `tests/test_main.py`, `tests/test_evaluation.py`,
   `tests/test_adversarial_lock.py` — deterministic logic only, no API
-  calls, no network. 33 tests covering sanitization, deterministic
+  calls, no network. 46 tests covering sanitization, deterministic
   signals, tool argument isolation, the evaluation harness's math, and
   the lock file's concurrency guarantee.
 - `tests/adversarial_regression/` — the one test suite that does call the

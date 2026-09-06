@@ -247,9 +247,14 @@ def generate_cases(merchants: list) -> list:
 
 
 def write_csv(path: Path, rows: list, fieldnames: list) -> None:
+    # lineterminator="\n" is load-bearing, not cosmetic: csv.writer defaults to
+    # "\r\n" (RFC 4180), which makes every regenerated file differ byte-for-byte
+    # from the LF-normalised copy committed to the repo (.gitattributes pins
+    # eol=lf). Same bytes in, same bytes out — that's what makes the
+    # "deterministic given SEED" claim above actually checkable with md5sum.
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(f, fieldnames=fieldnames, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 

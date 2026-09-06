@@ -255,3 +255,12 @@ table.cm td.err{border-color:rgba(255,107,107,.35);color:var(--red)}
 .posture p{color:var(--muted);font-size:13.5px;max-width:90ch}
 .loading{color:var(--dim);padding:30px;text-align:center;font-size:13.5px}
 .metric span i{font-style:normal;color:var(--muted)}
+
+.acronym{display:flex;gap:26px;align-items:center;flex-wrap:wrap;
+  background:linear-gradient(180deg,rgba(58,160,255,.07),transparent);
+  border:1px solid var(--border);border-left:3px solid var(--accent);
+  border-radius:0 12px 12px 0;padding:16px 20px;margin-bottom:22px}
+.acronym pre{font-family:var(--mono);font-size:12.5px;line-height:1.55;color:var(--accent);
+  letter-spacing:.04em;white-space:pre}
+.acronym p{font-size:13.5px;color:var(--muted);max-width:62ch;margin:0}
+.acronym b{color:var(--text)} .acronym i{color:var(--accent);font-style:normal}

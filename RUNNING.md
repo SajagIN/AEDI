@@ -29,9 +29,9 @@ pip install -r requirements.txt
 python -m pytest tests/ -v
 ```
 
-Expected: **33 passed**. This exercises the deterministic core — sanitisation,
-risk signals, tool-argument isolation, the evaluation harness's maths, and the
-adversarial lock file.
+Expected: **46 passed**. This exercises the deterministic core — sanitisation,
+risk signals, tool-argument isolation, the evaluation harness's maths, the
+adversarial lock file, and byte-for-byte dataset reproducibility.
 
 ---
 
