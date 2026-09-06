@@ -13,6 +13,8 @@
   ![Adversarial defense](https://img.shields.io/badge/ADVERSARIAL_DEFENSE-100%25-2ea44f?style=for-the-badge)
   ![False positives](https://img.shields.io/badge/FALSE_POSITIVES-ZERO-2ea44f?style=for-the-badge)
 
+  Built by **SajagIN** ([@SajagIN](https://github.com/SajagIN))
+
   ---
 
   ### ZERO FALSE POSITIVES · ZERO FALSE NEGATIVES · 100% ADVERSARIAL DEFENSE
@@ -44,11 +46,50 @@ document and [ENGINEERING_DECISIONS.md](ENGINEERING_DECISIONS.md) for the
 reasoning behind every non-obvious choice, including the bugs that were
 found on live runs and how they were fixed.
 
-**Contents:** [Defense-only posture](#defense-only-posture) ·
+**Contents:** [Quick start](#quick-start) · [Defense-only posture](#defense-only-posture) ·
 [Security](#security) · [Threat model](#the-threat-model) ·
 [Architecture](#architecture) · [Data model](#data-model) ·
 [Results](#results) · [Known limitations](#known-limitations) ·
 [Setup](#setup)
+
+---
+
+## QUICK START
+
+**No API key needed for any of this.** Full instructions in [RUNNING.md](RUNNING.md).
+
+```bash
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+
+# 1. Prove it works — 33 tests, no network, ~0.2s
+pip install -r requirements.txt
+python -m pytest tests/ -v
+
+# 2. Launch the web console -> http://127.0.0.1:8000
+pip install -r app/requirements.txt
+python app/server.py
+
+# 3. Or reproduce the held-out numbers on the command line
+python code/evaluation/main.py --split held_out \
+  --predictions dataset/held_out/output.csv --i-am-opening-held-out-for-real
+```
+
+### The console
+
+`app/server.py` puts a UI in front of the pipeline. It detects its own mode at
+startup: **REPLAY** without a `GROQ_API_KEY` (every deterministic signal, the
+full evaluation harness and the committed predictions — no network at all), or
+**LIVE** with one (adds a button that runs the real agent loop on a single case).
+
+- **Case Explorer** — inspect a dispute's evidence with its pipeline-assigned
+  IDs, the reason code's requirement checklist, the deterministic risk signals
+  and the untrusted merchant narrative; then watch the pipeline trace step
+  through to a decision with the cited evidence highlighted and checked against
+  ground truth.
+- **Evaluation** — confusion matrix, precision/recall, coverage and cost model
+  for the agent and both baselines, computed in-process by
+  `code/evaluation/main.py`. Nothing on the page is hard-coded.
+- **Adversarial** — the 24 attack fixtures and 10 benign controls.
 
 ---
 
@@ -289,6 +330,8 @@ explained away.
   pointing this at real chargeback evidence. See `SECURITY.md`.
 
 ## Setup
+
+See [RUNNING.md](RUNNING.md) for the full guide, including troubleshooting.
 
 ```bash
 cd code

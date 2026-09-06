@@ -30,6 +30,7 @@ justification, a confidence score, and the specific evidence IDs cited.
 | Evaluation harness | `code/evaluation/main.py` | Confusion matrix, precision/recall/coverage, false-positive cost model, two baselines. `--split held_out` required a one-time explicit opt-in flag; held-out has now been opened, at code freeze, with real results in the README. |
 | Dataset generator | `scripts/generate_dataset.py` | Deterministic, seeded synthetic case generator. Contains the ground-truth labelling rule — deliberately not importable from `code/main.py` (see §5). |
 | Adversarial suite | `tests/adversarial_regression/` | Fixed, publicly-documented injection-pattern fixtures + benign controls, run against the real pipeline. |
+| Web console | `app/server.py` | Read-only Flask UI over the pipeline. Calls `risk_signals`, `build_context` and the evaluation harness directly rather than reimplementing them; runs without credentials in REPLAY mode. |
 
 ## 3. Request flow
 
