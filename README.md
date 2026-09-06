@@ -84,7 +84,8 @@ reports a control false-positive rate next to its defense rate, and why
 
 **No API key needed for any of this.** Full instructions in [RUNNING.md](RUNNING.md).
 Presenting it to someone? [DEMO.md](DEMO.md) has the use case, a three-minute
-script and the hard questions with answers.
+script and the hard questions with answers —
+[DEMO_HINDI.md](DEMO_HINDI.md) mein wahi script Hindi mein hai, click-by-click.
 
 ```bash
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
