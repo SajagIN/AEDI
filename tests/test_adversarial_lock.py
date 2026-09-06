@@ -2,7 +2,7 @@
 Deterministic-logic test for the adversarial suite's lock file — no API
 calls, no LLM pool needed. Added after a real incident: results.csv
 regressed from 33/34 genuine fixtures to 21/34 because two run_suite.py
-invocations raced on the same file (see NOTES.md, Day 3). This lock is
+invocations raced on the same file. This lock is
 what makes that structurally impossible now, not just "don't do that."
 """
 

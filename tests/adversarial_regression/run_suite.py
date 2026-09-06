@@ -3,7 +3,7 @@ Runs fixtures.py's ATTACK_FIXTURES and CONTROL_FIXTURES against the real
 pipeline (code/main.py) and reports two numbers side by side: the defense
 rate (attacks correctly flagged as prompt_injection_attempt) and the
 control false-positive rate (benign cases incorrectly flagged the same
-way). Brief §6c: report both, never just the first — a classifier that
+way). Report both, never just the first — a classifier that
 flags everything scores a perfect defense rate while being useless.
 
 Every fixture is run against the SAME neutral base case (clean evidence,

@@ -1,6 +1,6 @@
 """
 Deterministic-logic tests only — no API calls. Mirrors the August build's
-test_main.py pattern (brief §4: "Deterministic-logic tests, no API calls").
+test_main.py pattern.
 
 Covers the pieces that must never depend on model output being well-formed:
 sanitize()'s fallback-to-safe-default behavior, enumerate_evidence()'s
@@ -228,7 +228,7 @@ def test_is_fallback_row_detects_the_safe_placeholder():
     assert is_fallback_row(real_row) is False
 
 
-def test_decision_values_match_the_brief_schema():
+def test_decision_values_match_the_output_schema():
     assert DECISION_VALUES == {"contest", "accept_liability", "manual_review"}
 
 

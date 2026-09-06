@@ -1,8 +1,8 @@
 """
 Evaluation harness — dev split only. held_out stays refused until code
-freeze (brief §6a: opened once, on freeze day, never touched for tuning).
+freeze (opened once, on freeze day, never touched for tuning).
 
-Reports, per brief §6a/§6b/§6d:
+Reports:
 - Confusion matrix over {contest, accept_liability, manual_review}.
 - Precision/recall for `contest` and `accept_liability` specifically -
   NOT overall accuracy, and NOT for manual_review (an abstention, not a
@@ -13,7 +13,7 @@ Reports, per brief §6a/§6b/§6d:
 - Expected cost per 100 cases, from an explicit false-positive/
   false-negative cost model, with the cost assumptions stated in the
   output itself, not just in a README someone might not read.
-- A rules-only baseline (§6d): always predict per evidence_sufficiency
+- A rules-only baseline: always predict per evidence_sufficiency
   alone (sufficient -> contest, else -> accept_liability, never
   manual_review), scored the same way, so precision/recall have a
   reference point.
@@ -31,7 +31,7 @@ REPO_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "code"))
 import risk_signals  # noqa: E402
 
-# ── Cost model (brief §6b) — assumptions stated here, not hidden ──────────
+# ── Cost model — assumptions stated here, not hidden ─────────────────────
 # False positive: contest a chargeback that should have been accepted.
 # Cost = wasted representment effort + dispute filing fee. Flat, because
 # this cost doesn't scale with transaction size - filing evidence takes
@@ -49,8 +49,8 @@ COST_FALSE_POSITIVE_INR = 800
 # above so it's not confused with an error cost.
 COST_MANUAL_REVIEW_INR = 150
 
-# Third, bonus/exploratory metric — NOT part of the brief's mandatory
-# cost model (§6b prices exactly two error directions). Models the
+# Third, bonus/exploratory metric — NOT part of the mandatory cost model
+# above (which prices exactly two error directions). Models the
 # unpriced exposure from a case that had a real risk signal but got
 # auto-decided anyway (a "bypassed review") as a fraction of the
 # transaction amount, since that exposure scales with what's at stake,
@@ -115,9 +115,9 @@ def expected_cost(predictions: dict, labels: dict, amounts: dict) -> dict:
             n_review += 1
     per_100 = (total_cost / n_scored * 100) if n_scored else 0.0
 
-    # Not priced above, on purpose: the brief defines cost for exactly two
+    # Not priced above, on purpose: the cost model defines cost for exactly two
     # error directions (contest-should-be-accept, accept-should-be-contest).
-    # A third real category exists but has no brief-specified price - cases
+    # A third real category exists but has no defined price - cases
     # where a human review was actually warranted (actual=manual_review)
     # but the agent auto-decided anyway, bypassing the review entirely.
     # That's arguably worse than either named error (an unreviewed
@@ -128,10 +128,11 @@ def expected_cost(predictions: dict, labels: dict, amounts: dict) -> dict:
         case_id for case_id, actual in labels.items()
         if actual == "manual_review" and predictions.get(case_id) in ("contest", "accept_liability")
     ]
-    # Bonus/exploratory metric, NOT part of the brief's mandatory cost
-    # model (§6b defines exactly two error directions) and deliberately
+    # Bonus/exploratory metric, NOT part of the mandatory cost model
+    # (which defines exactly two error directions) and deliberately
     # kept out of total_cost_inr/cost_per_100_inr above, so the required
-    # number stays exactly what the brief asked for. Modeled as a fraction
+    # primary number stays exactly what the cost model defines. Modeled as
+    # a fraction
     # of the transaction amount rather than a flat fee, because unlike the
     # manual_review labor cost (a known, fixed analyst-time cost), the
     # exposure from skipping a warranted review scales with what's at
@@ -151,7 +152,7 @@ def expected_cost(predictions: dict, labels: dict, amounts: dict) -> dict:
 
 
 def baseline_predictions(cases: list, ds_requirements: dict) -> dict:
-    """Rules-only baseline (brief §6d): contest if evidence is sufficient
+    """Rules-only baseline: contest if evidence is sufficient
     per the reason code's requirement, accept_liability otherwise. Never
     predicts manual_review - it has no concept of risk signals, only
     evidence completeness. Deliberately dumb, for comparison only."""
@@ -166,7 +167,7 @@ def baseline_predictions(cases: list, ds_requirements: dict) -> dict:
 
 
 def always_manual_review_predictions(cases: list) -> dict:
-    """Second baseline (brief §6d): route every case to a human. Perfect
+    """Second baseline: route every case to a human. Perfect
     'precision' on nothing (no automated decisions), zero coverage."""
     return {row["case_id"]: "manual_review" for row in cases}
 
@@ -201,12 +202,12 @@ def report(name: str, predictions: dict, labels: dict, amounts: dict) -> None:
           f"manual_review={cost['n_manual_review']} x INR{COST_MANUAL_REVIEW_INR})")
     if cost["n_bypassed_review"]:
         print(f"  WARNING: {cost['n_bypassed_review']} case(s) had actual=manual_review but were "
-              f"auto-decided anyway - not priced in the required cost above (brief only prices "
+              f"auto-decided anyway - not priced in the primary cost above (which prices only "
               f"the contest/accept_liability error directions).")
-        print(f"  BONUS (not part of the brief's cost model, exploratory only): modeling that "
+        print(f"  BONUS (not part of the primary cost model, exploratory only): modeling that "
               f"exposure at {BYPASSED_REVIEW_EXPOSURE_RATE:.0%} of transaction amount gives "
               f"INR {cost['bypassed_review_exposure_per_100_inr']:.0f} per 100 cases in unpriced risk "
-              f"- reported separately so it's never confused with the required, brief-defined number.")
+              f"- reported separately so it's never confused with the primary cost number.")
     if n < 30:
         print(f"  NOTE: small sample (n={n}) - treat these rates as directional, not final.")
 
@@ -239,7 +240,7 @@ def main() -> None:
         if marker_path.exists():
             print(f"NOTE: held_out was already opened once - see {marker_path}")
             print(marker_path.read_text(encoding="utf-8"))
-            print("Re-running is for display purposes only; the brief's discipline is "
+            print("Re-running is for display purposes only; held-out discipline is "
                   "about not TUNING after seeing this, not about a technical rerun block.")
 
     split_dir = dataset_dir / args.split

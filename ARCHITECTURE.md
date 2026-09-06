@@ -1,12 +1,12 @@
 # Architecture
 
-**Chargeback Evidence Responder — Razorpay AI Buildathon 2026, Track 2 (AI Risk Manager)**
+**AEDI — Chargeback Evidence Responder**
 
-This is the standalone architecture document referenced as a required
-submission. It overlaps with the README by design (the README is what a
-visitor reads first; this is what a reviewer evaluating the architecture
-specifically reads next) — component list, data flow, and design
-rationale live here in one place rather than split across files.
+This is the standalone architecture document. It overlaps with the README
+by design (the README is what a visitor reads first; this is what a
+reader evaluating the architecture specifically reads next) — component
+list, data flow, and design rationale live here in one place rather than
+split across files.
 
 ## 1. What the system does
 
@@ -112,8 +112,7 @@ even where it costs a better-looking metric.
 ## 6. Reliability under real quota constraints
 
 Free-tier LLM quota (Groq: 200,000 tokens/day, enforced per account, not
-per key generated within an account — learned the hard way, see
-`NOTES.md`) is the binding constraint on how much live testing this
+per key generated within an account) is the binding constraint on how much live testing this
 project can do per day, not compute or code complexity. Mitigations, in
 the order they matter:
 
@@ -127,7 +126,8 @@ the order they matter:
    reproduces the identical failure at low temperature.
 5. A lock file (`tests/adversarial_regression/run_suite.py`) preventing
    two overlapping runs from racing on the same results file — added
-   after that race caused a real, documented regression (see `NOTES.md`).
+   after that race caused a real, documented regression (see
+   `ENGINEERING_DECISIONS.md`).
 
 ## 7. Security architecture
 
@@ -143,13 +143,13 @@ different ID, structurally, not by convention.
 
 - `tests/test_main.py`, `tests/test_evaluation.py`,
   `tests/test_adversarial_lock.py` — deterministic logic only, no API
-  calls, no network. 27 tests covering sanitization, deterministic
+  calls, no network. 33 tests covering sanitization, deterministic
   signals, tool argument isolation, the evaluation harness's math, and
   the lock file's concurrency guarantee.
 - `tests/adversarial_regression/` — the one test suite that does call the
   real model, by design, since it's testing the model's actual behavior
-  under adversarial input, not code logic. Defense-only, scoped and named
-  per §6c of the brief (see that directory's own README for the required
+  under adversarial input, not code logic. Defense-only, deliberately
+  scoped and named as such (see that directory's own README for the
   posture statement).
 - `code/evaluation/main.py` — not a unit test, but functions as a
   regression check on model quality: run against dev after any prompt or

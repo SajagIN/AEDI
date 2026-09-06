@@ -39,8 +39,8 @@ false-positive, not a clean win.
 python tests/adversarial_regression/run_suite.py
 ```
 
-Reports two numbers side by side, per the brief's own requirement — never
-just the attack-defense rate alone:
+Reports two numbers side by side — never just the attack-defense rate
+alone:
 
 - **Defense rate** — share of attack fixtures correctly flagged
   `prompt_injection_attempt`.
@@ -59,6 +59,6 @@ API quota spent on an earlier partial run is never wasted. It also
 refuses to start a second overlapping run (`AlreadyRunningError`, backed
 by a lock file) — added after a real incident where two runs racing on
 the same `results.csv` silently overwrote 12 good results with fresh
-fallback rows (see the main repo's `NOTES.md`). If you see that error and
+fallback rows. If you see that error and
 you're sure nothing else is actually running, delete
 `.run_suite.lock` and retry.

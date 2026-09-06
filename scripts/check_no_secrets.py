@@ -2,19 +2,19 @@
 Secret scanner — run before every commit (see scripts/pre-commit) to catch
 a credential before it ever reaches git history, not after.
 
-Why this exists as actual code and not just a README promise: Razorpay's
-own security docs state the same rule this project follows — secret keys
-must never be committed to a repo, environment variables only
-(razorpay.com/docs/security/). A README saying "we don't commit secrets"
-is a claim; a script that structurally blocks the commit is evidence. This
-also directly matches the brief's own checklist: "no leftover credentials
-or placeholder names from other projects."
+Why this exists as actual code and not just a README promise: the rule
+this project follows — secret keys must never be committed to a repo,
+environment variables only — is the standard every payment-adjacent
+engineering org states. A README saying "we don't commit secrets" is a
+claim; a script that structurally blocks the commit is evidence. It also
+guards against leftover credentials or placeholder names carried in from
+other projects.
 
 Patterns covered:
 - Groq API keys (this project's actual provider) — gsk_...
-- Razorpay API keys / key secrets — rzp_live_/rzp_test_ and the
-  key_id/key_secret pattern, even though this project never calls
-  Razorpay's API, in case that changes later
+- Payment-gateway API keys / key secrets — the rzp_live_/rzp_test_ and
+  key_id/key_secret shapes, even though this project never calls a
+  payment API, in case that changes later
 - AWS access keys, generic private key headers
 - Any *_API_KEY / *_SECRET / *_TOKEN assignment whose value isn't an
   obvious placeholder (xxx, your_key_here, changeme, <...>, empty)
@@ -34,7 +34,7 @@ REPO_ROOT = Path(__file__).parent.parent
 
 PATTERNS = [
     ("Groq API key", re.compile(r"gsk_[A-Za-z0-9]{20,}")),
-    ("Razorpay API key", re.compile(r"rzp_(live|test)_[A-Za-z0-9]{10,}")),
+    ("Payment gateway API key", re.compile(r"rzp_(live|test)_[A-Za-z0-9]{10,}")),
     ("AWS access key ID", re.compile(r"AKIA[0-9A-Z]{16}")),
     ("Private key block", re.compile(r"-----BEGIN (RSA |EC |OPENSSH |)PRIVATE KEY-----")),
 ]

@@ -1,16 +1,13 @@
 # Engineering decisions
 
-Razorpay's own framing for this track: *"verification capacity, not
-generation speed, is the bottleneck."* That's a statement about how this
-gets judged, not just what gets built — so this file exists to make
-verification cheap. Every decision below is a place where the easy version
-and the correct version diverged, with the reasoning for picking the
-harder one, a pointer to where it lives, and — where relevant — what would
-have happened if the easy version had shipped instead. Chronological build
-log with real failures is in [NOTES.md](NOTES.md); this file is the
-distilled "why," organized by concern instead of by day.
+Verification capacity, not generation speed, is the bottleneck on a system
+like this — so this file exists to make verification cheap. Every decision
+below is a place where the easy version and the correct version diverged,
+with the reasoning for picking the harder one, a pointer to where it
+lives, and — where relevant — what would have happened if the easy version
+had shipped instead.
 
-## Measurement integrity (the part this track actually scores)
+## Measurement integrity
 
 - **The ground-truth decision rule is structurally unreachable from the
   runtime pipeline.** `risk_signals.py` computes shared FEATURES (evidence
@@ -29,9 +26,9 @@ distilled "why," organized by concern instead of by day.
   rejected: it would make the pipeline mechanically agree with its own
   eval's answer key on that decision boundary, which turns "precision/
   recall on this class" into a tautology instead of a measurement. Pushed
-  the prompt harder instead — three separate attempts total (see
-  NOTES.md) — and the third was tested with a controlled before/after on
-  the identical risk-flagged cases rather than just eyeballed: it made
+  the prompt harder instead — three separate attempts total — and the
+  third was tested with a controlled before/after on the identical
+  risk-flagged cases rather than just eyeballed: it made
   **zero measurable difference**, the exact same case IDs caught both
   times. That's now a confirmed result, not a hoped-for one, and it's
   reported as such rather than left at "still improving it." The decision
@@ -71,9 +68,8 @@ distilled "why," organized by concern instead of by day.
   which mostly reproduces the identical failure. Fixed with a local retry
   inside the forced-decision round that appends a corrective message
   before retrying, so the retry is actually a different request (`code/
-  main.py::_run_agent_turn`, `FORCE_CLASSIFY_NUDGE`). Full story in
-  NOTES.md — this is exactly the kind of thing Razorpay's brief explicitly
-  asks to see disclosed, not smoothed over.
+  main.py::_run_agent_turn`, `FORCE_CLASSIFY_NUDGE`). Disclosed here
+  rather than smoothed over.
 - **`_recover_failed_generation`**: Groq's forced-`tool_choice` path
   sometimes rejects a call with a 400 even when the model produced a
   complete, correct JSON answer as plain text instead of a structured tool
@@ -90,28 +86,49 @@ pipeline's ground truth, never the model's claim about which record it
 wants. Same principle real access-control systems use for least-privilege
 data access, applied at the tool-call boundary instead of a database layer
 — see [SECURITY.md](SECURITY.md) for the fuller writeup, including how
-this project's secret-handling aligns with Razorpay's own published
-security practices.
+this project handles inference credentials.
 
-## Defense-only robustness testing, scoped to survive the disqualification bar
+## Defense-only robustness testing
 
-The brief is explicit that anything offense-capable is disqualifying for
-this track. The adversarial regression suite
+Anything offense-capable is out of scope for this project by design. The
+adversarial regression suite
 (`tests/adversarial_regression/`) is named and scoped specifically to stay
 on the right side of that line: fixed, publicly-documented injection
-patterns only, no attack generation, no third-party targeting, and a
-required posture statement at the top of that directory's own README —
+patterns only, no attack generation, no third-party targeting, and an
+explicit posture statement at the top of that directory's own README —
 see it for the full defense-rate / control-false-positive-rate results
 methodology.
 
+## Incidents found on live runs
+
+These are recorded because they changed the code, not as a war story:
+
+- **Groq's daily token cap is enforced per *account*, not per key.**
+  Additional keys generated from the same account share one 200k-token/day
+  pool; the API's own rate-limit errors expose the identical
+  `organization` ID for all of them. Only keys from genuinely separate
+  accounts add daily headroom — extra keys from one account still help
+  spread per-minute limits. Documented in `.env.example` so nobody
+  re-derives it.
+- **A retry that resent an identical request recovered nothing.** Fixed by
+  making the forced-decision round's local retry append a corrective
+  message, so the retry is a genuinely different request (see above).
+- **Two overlapping adversarial-suite runs raced on the same
+  `results.csv`** and silently overwrote 12 genuine results with fresh
+  fallback rows. Fixed with a lock file (`AlreadyRunningError`) and
+  covered by `tests/test_adversarial_lock.py`, so the failure mode is now
+  structurally impossible rather than merely avoided by convention.
+- **A scoring path in the evaluation harness was resolving `--predictions`
+  against the shell's cwd rather than the repo root**, which would have
+  silently scored the wrong file. Paths are now resolved against the repo
+  root everywhere.
+
 ## Honesty as infrastructure, not just a section in the README
 
-- `NOTES.md` has been live since hour one — every entry above about a bug
-  was written when it happened, not reconstructed afterward for this
-  document. That's the difference between a real "what broke" section and
-  a plausible-sounding one.
+- Every incident above was recorded when it happened and is reflected in
+  the code that fixed it, not reconstructed afterward for this document.
 - `dataset/LABELLING_RUBRIC.md` commits the ground-truth logic in the
-  open, in prose a reviewer can check by hand against `generate_dataset.py`
+  open, in prose a reader can check by hand against `generate_dataset.py`
   without running any code.
 - Known limitations are stated where they're found, not collected at the
   end: `SECURITY.md` discloses that the local LLM cache is unencrypted

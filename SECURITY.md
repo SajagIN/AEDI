@@ -3,14 +3,12 @@
 ## Scope, stated honestly
 
 This project never touches real cardholder data, real merchant
-credentials, or Razorpay's own payment APIs — it's a hackathon prototype
-running against a synthetic, rubric-labelled dataset (`dataset/`). That
-means PCI-DSS scope doesn't technically apply here; there's no cardholder
-data to protect because none exists in this repo. What follows isn't a
-compliance claim — it's this project voluntarily following the same
-operating discipline Razorpay's own published security practices describe
-([razorpay.com/docs/security](https://razorpay.com/docs/security/)),
-because the whole point of a Track 2 (AI Risk Manager) submission is
+credentials, or any live payment API — it's a prototype running against a
+synthetic, rubric-labelled dataset (`dataset/`). That means PCI-DSS scope
+doesn't technically apply here; there's no cardholder data to protect
+because none exists in this repo. What follows isn't a compliance claim —
+it's this project voluntarily following the operating discipline a payment
+risk team would expect, because the whole point of an AI risk agent is
 handling money-adjacent decisions the way a real risk team would.
 
 ## Secrets
@@ -21,20 +19,21 @@ handling money-adjacent decisions the way a real risk team would.
   literal, hardcoded value.
 - `.env` is git-ignored. `.env.example` ships with a placeholder only.
 - `scripts/check_no_secrets.py` scans staged files for key-shaped strings
-  (Groq, and — defensively — Razorpay's own `rzp_live_`/`rzp_test_` format,
-  AWS keys, private-key blocks, and any `*_API_KEY`/`*_SECRET`/`*_TOKEN`
-  assignment that isn't an obvious placeholder) before a commit is allowed
-  through. Install it once per clone:
+  (Groq, and — defensively — payment-gateway key formats such as
+  `rzp_live_`/`rzp_test_`, AWS keys, private-key blocks, and any
+  `*_API_KEY`/`*_SECRET`/`*_TOKEN` assignment that isn't an obvious
+  placeholder) before a commit is allowed through. Install it once per
+  clone:
 
   ```bash
   cp scripts/pre-commit .git/hooks/pre-commit
   chmod +x .git/hooks/pre-commit   # not needed on Windows
   ```
 
-  This exists as a script, not just a README promise, because Razorpay's
-  own docs state the same rule — secret keys must never be committed, env
-  vars only — and a script that structurally blocks the commit is
-  evidence that rule is followed, not just asserted.
+  This exists as a script, not just a README promise, because the rule
+  every payment-adjacent engineering org states is the same — secret keys
+  must never be committed, env vars only — and a script that structurally
+  blocks the commit is evidence that rule is followed, not just asserted.
 - Verified directly (not assumed): `git log --all -p | grep gsk_` across
   every commit in this repo's history returns only the placeholder in
   `.env.example`, never a real key. Log output (`KeyPool`'s prints, error

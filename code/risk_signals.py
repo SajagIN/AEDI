@@ -6,8 +6,8 @@ Sharing this module between the two is intentional, not circular: it
 computes FEATURES (evidence sufficiency, amount anomaly, merchant repeat
 pattern), never the final decision. The runtime pipeline hands these
 features to the LLM as pre-computed facts (so the model isn't reinventing
-evidence-matching from raw text — see the brief's "deterministic signals
-computed in code, not in the prompt" principle); the label generator uses
+evidence-matching from raw text — the "deterministic signals computed in
+code, not in the prompt" principle); the label generator uses
 the same features as inputs to its own separate decision rule.
 
 The decision rule itself (which combines these features into a ground-truth

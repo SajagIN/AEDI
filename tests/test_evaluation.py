@@ -106,7 +106,7 @@ def test_expected_cost_manual_review_is_flat_regardless_of_correctness():
 
 def test_expected_cost_flags_bypassed_review_without_pricing_it():
     # actual=manual_review but agent auto-decided - a real risk, not priced
-    # as FP/FN since it doesn't match either brief-defined error direction.
+    # as FP/FN since it doesn't match either defined error direction.
     predictions = {"c1": "contest"}
     labels = {"c1": "manual_review"}
     result = expected_cost(predictions, labels, amounts={"c1": "5000"})
@@ -116,13 +116,13 @@ def test_expected_cost_flags_bypassed_review_without_pricing_it():
     assert result["total_cost_inr"] == 0  # not priced, but counted - see n_bypassed_review
 
 
-def test_bypassed_review_bonus_exposure_kept_out_of_required_cost():
+def test_bypassed_review_bonus_exposure_kept_out_of_primary_cost():
     predictions = {"c1": "contest"}
     labels = {"c1": "manual_review"}
     result = expected_cost(predictions, labels, amounts={"c1": "10000"})
     # bonus metric computed correctly...
     assert result["bypassed_review_exposure_inr"] == 10000 * _eval_main.BYPASSED_REVIEW_EXPOSURE_RATE
-    # ...but never folds into the brief's required, mandatory cost number
+    # ...but never folds into the primary, mandatory cost number
     assert result["total_cost_inr"] == 0
     assert result["cost_per_100_inr"] == 0
 

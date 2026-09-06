@@ -1,13 +1,13 @@
 """
 Chargeback Evidence Responder — main entry point.
 
-Track 2 (AI Risk Manager), one class of loss: chargebacks. Reads a
+One class of loss: chargebacks. Reads a
 chargeback case (reason code, transaction, merchant-submitted evidence,
 merchant narrative, merchant history) and decides whether the evidence
 supports contesting the chargeback, supports accepting liability, or is
 insufficient/ambiguous enough to need a human.
 
-Architecture ported from two prior Orchestrate builds (see NOTES.md):
+Architecture ported from two prior Orchestrate builds:
 KeyPool, sanitize(), _execute_tool(), the bounded _run_agent_turn() loop,
 and resume/is_fallback_row() come from the August build (WhatsApp routing
 domain). The three-way decision shape and the "grounded citation only"
@@ -52,7 +52,7 @@ MODEL = "qwen/qwen3.6-27b"
 # ── Allowed value sets ────────────────────────────────────────────────────
 # `manual_review` is an abstention, not a class with its own precision/recall
 # target — `contest` is the positive class (the action with money
-# consequences). See §6a of the brief: coverage (share decided automatically
+# consequences). Coverage (share decided automatically
 # vs routed to review) is reported alongside precision/recall specifically
 # so a system that abstains on everything doesn't look artificially good.
 DECISION_VALUES = {"contest", "accept_liability", "manual_review"}
@@ -77,7 +77,8 @@ OUTPUT_COLUMNS = [
 # these is a failed attempt (retried, then falls back to a manual-review
 # row) rather than being allowed to crash format_row's dict indexing — this
 # is the exact June-build defect (direct dict indexing, no presence check)
-# that judges flagged; fixed here from the start instead of patched later.
+# that surfaced in review there; fixed here from the start instead of
+# patched later.
 REQUIRED_MODEL_FIELDS = {
     "decision", "evidence_sufficiency", "risk_flags",
     "reason", "confidence", "cited_evidence_ids",
@@ -203,7 +204,7 @@ class KeyPool:
     hammering one key. Does NOT multiply the daily token cap by itself — Groq's daily quota
     is per ACCOUNT, so multiple keys generated from the same account share one pool
     (confirmed directly from the API: same-account keys show the identical `organization`
-    ID when rate-limited, see NOTES.md). Real daily-cap headroom only comes from keys on
+    ID when rate-limited). Real daily-cap headroom only comes from keys on
     genuinely separate accounts. Ported as-is from the August Orchestrate build — generic,
     no domain coupling."""
 
@@ -522,7 +523,7 @@ def _execute_tool(name: str, ctx: dict) -> dict:
     another case's or merchant's data. The tool's authority is the
     pipeline's own ground truth, not the model's claim about which record
     it wants. Ported as-is in spirit from the August build."""
-    # Third attempt at the manual_review-coverage gap (see NOTES.md,
+    # Third attempt at the manual_review-coverage gap (see
     # ENGINEERING_DECISIONS.md): two prompt-only attempts that stated the
     # override rule once, in the abstract, in the system prompt, weren't
     # reliably followed — a real risk flag would come back true and the
@@ -658,7 +659,7 @@ def _run_agent_turn(pool: KeyPool, cache: ResponseCache, base_messages: list, ct
     just the outer per-case retry in analyze_case. This matters because a
     retry with an IDENTICAL request at temperature=0.1 tends to reproduce the
     same failure rather than recover from it — observed directly on the dev
-    set's first real run (NOTES.md, Day 3): the model would repeat the exact
+    set's first real run: the model would repeat the exact
     same wrong tool call 3 times in a row against an unchanged prompt. Each
     local retry here appends FORCE_CLASSIFY_NUDGE, which actually changes the
     request, instead of resending the same one and hoping for a different

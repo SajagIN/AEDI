@@ -5,8 +5,8 @@ from. It is applied by `scripts/generate_dataset.py::label_case()` —
 **deterministic code, not the LLM under test.** That's the whole point of
 committing this file: a reader can check any case's label against these
 rules by hand, and the labels don't depend on the same model being
-evaluated having judged them. See §1 of the brief's "held-out discipline"
-requirement — an eval where the system labels its own test data is
+evaluated having judged them. This is the held-out discipline the project
+holds itself to — an eval where the system labels its own test data is
 circular and the numbers mean nothing.
 
 Reason codes below are modeled on real, publicly known Visa/Mastercard
@@ -31,7 +31,8 @@ project's own design.
 | `4863` | Mastercard | Cardholder doesn't recognize transaction | `avs_cvv_match`, `prior_purchase_history` |
 
 Each evidence item a merchant submits is tagged with one of these types
-(e.g. `proof_of_delivery: signed courier receipt dated 2026-07-14`). The
+(e.g. `proof_of_delivery: Signed delivery confirmation dated within the
+expected window`). The
 tag, not the free-text description, is what the rubric and the pipeline's
 deterministic signal check against — matching the "grounded citation, not
 inference" principle used throughout this project.
@@ -77,13 +78,13 @@ alone would miss that.
 Prompt-injection / adversarial narrative content is **not** part of this
 dataset or this rubric. That's tested separately, in a dedicated,
 clearly-scoped, defense-only regression suite
-(`tests/adversarial_regression/`, brief §6c) — kept out of the main
+(`tests/adversarial_regression/`) — kept out of the main
 dataset entirely so there's no ambiguity about attack-flavored content
 being scattered outside its designated, safely-named location.
 
 ## 6. Known limitation
 
 Labels here are rubric-derived on synthetic cases, not sourced from real
-dispute outcomes — stated plainly, per the brief's honesty rules. The
+dispute outcomes — stated plainly. The
 value of this rubric is that it's mechanical and auditable, not that it
 reflects real-world card-network adjudication in full.
