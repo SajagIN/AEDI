@@ -90,7 +90,7 @@ script and the hard questions with answers —
 ```bash
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 
-# 1. Prove it works — 33 tests, no network, ~0.2s
+# 1. Prove it works — 208 tests, no network, ~25s
 pip install -r requirements.txt
 python -m pytest tests/ -v
 

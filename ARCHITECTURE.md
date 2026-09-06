@@ -144,9 +144,12 @@ different ID, structurally, not by convention.
 
 - `tests/test_main.py`, `tests/test_evaluation.py`,
   `tests/test_adversarial_lock.py` — deterministic logic only, no API
-  calls, no network. 46 tests covering sanitization, deterministic
+  calls, no network. 33 tests covering sanitization, deterministic
   signals, tool argument isolation, the evaluation harness's math, and
-  the lock file's concurrency guarantee.
+  the lock file's concurrency guarantee. Seven further files — Razorpay
+  live and endpoint behaviour, the output-token and reasoning budgets,
+  the live-call deadline and partial-run reporting — bring the offline
+  suite to 208.
 - `tests/adversarial_regression/` — the one test suite that does call the
   real model, by design, since it's testing the model's actual behavior
   under adversarial input, not code logic. Defense-only, deliberately
