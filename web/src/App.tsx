@@ -15,8 +15,14 @@ export default function App() {
   useEffect(() => {
     getHealth().then((h) => {
       setHealth(h);
-      const withPreds = Object.entries(h.splits).find(([, v]) => v.has_predictions);
-      if (withPreds) setSplit(withPreds[0]);
+      /* Pick the split with the most cases actually scored — not merely the
+         first one that has an output.csv. An interrupted run leaves a one-row
+         file on dev, and `dev` sorts first, so the old check silently selected
+         a split with a single scored case and every number read as zero. */
+      const best = Object.entries(h.splits)
+        .filter(([, v]) => v.scored > 0)
+        .sort((a, b) => (b[1].complete ? 1 : 0) - (a[1].complete ? 1 : 0) || b[1].scored - a[1].scored);
+      if (best.length) setSplit(best[0][0]);
     });
   }, []);
 

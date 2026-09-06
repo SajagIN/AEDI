@@ -51,6 +51,12 @@ export default function Overview({ split }: { split: string }) {
   const saved = (perCaseToday - perCaseAgent) * vol;
   const exposure = agent ? (agent.cost.bypassed_review_exposure_per_100_inr / 100) * vol : 0;
 
+  /* Only project from a split whose run actually finished. See the banner
+     below for why a partial run cannot be extrapolated. */
+  const total = m?.n_cases ?? 0;
+  const scored = m?.n_scored ?? 0;
+  const projectable = !!agent && scored > 0 && scored >= total;
+
   return (
     <div className="space-y-6">
       {/* hero */}
@@ -125,7 +131,38 @@ export default function Overview({ split }: { split: string }) {
             </label>
           </div>
 
-          {agent && (
+          {/* A partial run is not a sample you can extrapolate from: the cases
+              that got scored are whichever ones the pipeline reached before it
+              stopped, in file order. Averaging them and multiplying by a
+              monthly volume produces a confident-looking wrong number, so
+              decline and say why. */}
+          {agent && !projectable && (
+            <div className="rounded-2xl border border-ios-orange/30 bg-ios-orange/[.06] p-5">
+              <div className="mb-1.5 flex items-center gap-2 text-[14px] font-semibold text-[#B25000]">
+                <TriangleAlert size={15} />
+                {scored === 0
+                  ? `No scored cases on ${m?.split}`
+                  : `Only ${scored} of ${total} cases scored on ${m?.split}`}
+              </div>
+              <p className="text-[13px] leading-relaxed text-muted-foreground">
+                {scored === 0
+                  ? "There is nothing to project from yet."
+                  : "That looks like a pipeline run that stopped early. The cases that did get " +
+                    "scored are whichever ones the run reached first — not a random sample — so " +
+                    "projecting a monthly figure from them would be a confident-looking wrong number."}{" "}
+                Switch to a split with a complete run, or finish this one:
+              </p>
+              <pre className="mt-3 overflow-x-auto rounded-xl bg-[#1c1c1e] p-3.5 font-mono text-[11.5px] leading-relaxed text-[#e5e5ea]">
+{`python code/main.py --input dataset/${m?.split}/cases.csv \\
+  --output dataset/${m?.split}/output.csv`}
+              </pre>
+              <p className="mt-2.5 text-[12px] text-muted-foreground">
+                The run resumes from its cache, so re-running it does not repeat work already done.
+              </p>
+            </div>
+          )}
+
+          {agent && projectable && (
             <>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 {[

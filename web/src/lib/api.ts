@@ -6,7 +6,7 @@ export type Health = {
   live_capable: boolean;
   model: string;
   cache_entries: number;
-  splits: Record<string, { cases: number; has_predictions: boolean }>;
+  splits: Record<string, { cases: number; has_predictions: boolean; scored: number; complete: boolean }>;
 };
 
 export type CaseSummary = {
@@ -53,6 +53,7 @@ export type Block = {
 
 export type Metrics = {
   split: string; available: boolean; message?: string;
+  n_cases?: number; n_scored?: number; complete?: boolean;
   decision_values: string[];
   cost_model: { false_positive_inr: number; manual_review_inr: number; bypassed_exposure_rate: number };
   blocks: Block[];

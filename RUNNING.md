@@ -238,6 +238,8 @@ chmod +x .git/hooks/pre-commit
 |---|---|
 | `Error: no GROQ_API_KEY* found` | Only the live agent needs a key. The tests, the web console in REPLAY mode, and held-out scoring all run without one. |
 | `FileNotFoundError: dataset/dev/output.csv` | That file isn't committed. Generate it with `python code/main.py --input dataset/dev/cases.csv --output dataset/dev/output.csv`, or score `held_out` instead. |
+| Overview shows `Auto-decided 0` and `₹0` saved | The selected split has an incomplete run. The banner names it — finish the run, or switch to `held_out`, which ships complete. |
+| Numbers look wrong right after running `code/main.py` | If the run stopped early, `output.csv` holds only the cases it reached. That is not a random sample, so the console declines to project from it. Re-run the same command; it resumes from cache. |
 | `--split held_out is refused` | Pass `--i-am-opening-held-out-for-real`. The guard is deliberate. |
 | `AlreadyRunningError` from the adversarial suite | A lock file is preventing two overlapping runs from corrupting `results.csv`. Delete `.run_suite.lock` if nothing else is running. |
 | `ModuleNotFoundError: flask` | `pip install -r app/requirements.txt` — the web console's dependency, not the pipeline's. |

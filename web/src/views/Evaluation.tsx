@@ -1,3 +1,4 @@
+import { TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +33,31 @@ export default function Evaluation({ health, split, setSplit }:
             python code/main.py --input dataset/{m.split}/cases.csv --output dataset/{m.split}/output.csv
           </code>
         </CardContent></Card>
+      )}
+
+      {/* A partial run makes the comparison meaningless: the agent block is
+          scored on the cases the run reached, while both baselines are scored
+          on the whole split. Different denominators, so the rows are not
+          comparable — say so above the tables rather than letting someone read
+          them side by side. */}
+      {m?.available && m.complete === false && (
+        <Card className="animate-fade-up border-ios-orange/30 bg-ios-orange/[.06]">
+          <CardContent className="p-5">
+            <div className="mb-1.5 flex items-center gap-2 text-[14px] font-semibold text-[#B25000]">
+              <TriangleAlert size={15} />
+              Incomplete run — {m.n_scored} of {m.n_cases} cases scored on {m.split}
+            </div>
+            <p className="text-[13px] leading-relaxed text-muted-foreground">
+              The agent row below is measured on those {m.n_scored} case(s); both baseline rows are
+              measured on all {m.n_cases}. Different denominators, so do not read them against each
+              other. Finish the run first:
+            </p>
+            <pre className="mt-3 overflow-x-auto rounded-xl bg-[#1c1c1e] p-3.5 font-mono text-[11.5px] leading-relaxed text-[#e5e5ea]">
+{`python code/main.py --input dataset/${m.split}/cases.csv \\
+  --output dataset/${m.split}/output.csv`}
+            </pre>
+          </CardContent>
+        </Card>
       )}
 
       {m?.available && m.blocks.map((b, bi) => (

@@ -153,10 +153,15 @@ def health():
         "cache_entries": len(list((REPO_ROOT / ".cache" / "llm_responses").glob("*.json")))
         if (REPO_ROOT / ".cache" / "llm_responses").exists() else 0,
         "model": pipeline.MODEL,
+        # `has_predictions` alone was misleading: an interrupted run leaves a
+        # one-row output.csv, which looked identical to a complete one. Report
+        # the scored count so callers can tell a finished run from a stub.
         "splits": {
             s: {
                 "cases": len(split_cases(s)),
                 "has_predictions": (DATASET_DIR / s / "output.csv").exists(),
+                "scored": len(split_predictions(s)),
+                "complete": len(split_predictions(s)) >= len(split_cases(s)) > 0,
             } for s in SPLITS
         },
     })
@@ -330,9 +335,19 @@ def metrics():
             "cost": cost,
         }
 
+    n_cases = len(cases_rows)
+    n_scored = len({c for c in agent if c in labels})
+
     return jsonify({
         "split": split,
         "available": True,
+        # An interrupted pipeline run leaves a partial output.csv. The scored
+        # subset is then "whatever the run got through before it stopped" —
+        # not a random sample — so anything extrapolated from it is wrong.
+        # Report it and let the UI decline rather than quietly averaging 1 case.
+        "n_cases": n_cases,
+        "n_scored": n_scored,
+        "complete": n_scored >= n_cases > 0,
         "decision_values": evaluation.DECISION_VALUES,
         "cost_model": {
             "false_positive_inr": evaluation.COST_FALSE_POSITIVE_INR,
