@@ -32,6 +32,10 @@ export type CaseDetail = {
 
 export type AnalyzeResult = {
   source: string;
+  /* True when the pipeline exhausted its retries and returned the safe
+     manual_review placeholder. manual_review is also a legitimate verdict, so
+     without this flag the two are indistinguishable in the UI. */
+  fallback?: boolean;
   result: { decision: string; evidence_sufficiency: string; risk_flags: string[]; reason: string; confidence: number | null; cited_evidence_ids: string };
   cited_evidence_ids: string[];
   trace: { step: string; kind: string; detail: string }[];
@@ -147,6 +151,7 @@ export type RzpEvent = {
 
 export type RzpDecision = {
   dispute_id: string;
+  fallback?: boolean;
   result: AnalyzeResult["result"];
   deterministic_flags: string[];
   signals: CaseDetail["signals"];

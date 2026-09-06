@@ -508,6 +508,22 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
                 Run the pipeline
               </Button>
 
+              {decision?.fallback && (
+                <div className="mt-4 rounded-[3px] border border-signal-bad/35 bg-signal-bad/[.07] p-4">
+                  <div className="mb-1.5 flex items-center gap-2 font-display text-[17px] text-signal-bad">
+                    <AlertTriangle size={15} /> The model never answered
+                  </div>
+                  <p className="text-[12.5px] leading-relaxed text-muted-foreground">
+                    Every attempt failed, so this is the safe fallback &mdash;{" "}
+                    <b className="font-mono text-[11.5px] text-foreground">manual_review</b> with zero
+                    confidence &mdash; not a judgement about this chargeback. Nothing was sent to Razorpay.
+                    The server log has the cause; on a small free tier it is usually the output-token
+                    budget, logged as <b className="font-mono text-[11.5px] text-foreground">OTPM</b> or{" "}
+                    <b className="font-mono text-[11.5px] text-foreground">tool_use_failed</b>.
+                  </p>
+                </div>
+              )}
+
               {decision && (
                 <div className="mt-4 space-y-3">
                   <div className="space-y-1.5">

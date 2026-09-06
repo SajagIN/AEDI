@@ -8,7 +8,7 @@ import {
   analyze, decisionTone, getCase, getCases, nice, num,
   type AnalyzeResult, type CaseDetail, type CaseSummary, type Health,
 } from "@/lib/api";
-import { Check, ChevronRight, CircleAlert, Play, Search, X, Zap } from "lucide-react";
+import { Check, ChevronRight, CircleAlert, Play, Search, TriangleAlert, X, Zap } from "lucide-react";
 
 const FILTERS = [
   { id: "all", label: "All" },
@@ -235,6 +235,22 @@ export default function CaseExplorer({ health, split, setSplit }:
 
                 {run?.error && (
                   <div className="rounded-[3px] border border-signal-warn/30 bg-signal-warn/[.06] p-4 text-[13px]">{run.error}</div>
+                )}
+
+                {run?.fallback && (
+                  <div className="mb-4 rounded-[3px] border border-signal-bad/35 bg-signal-bad/[.07] p-4">
+                    <div className="mb-1.5 flex items-center gap-2 font-display text-[17px] text-signal-bad">
+                      <TriangleAlert size={15} /> The model never answered
+                    </div>
+                    <p className="text-[12.5px] leading-relaxed text-muted-foreground">
+                      Every attempt failed, so this is the safe fallback &mdash;{" "}
+                      <b className="font-mono text-[11.5px] text-foreground">manual_review</b> with zero
+                      confidence &mdash; not a judgement about the case. The server log has the cause; on a
+                      small free tier it is usually the output-token budget, logged as{" "}
+                      <b className="font-mono text-[11.5px] text-foreground">OTPM</b> or{" "}
+                      <b className="font-mono text-[11.5px] text-foreground">tool_use_failed</b>.
+                    </p>
+                  </div>
                 )}
 
                 {run && !run.error && (

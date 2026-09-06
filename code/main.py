@@ -503,6 +503,87 @@ def is_output_token_limit(err: str) -> bool:
     return bool(_OTPM_RE.search(err))
 
 
+# ── Reasoning budget ──────────────────────────────────────────────────────
+# The default model is a reasoning model. On Groq, the output-token budget is
+# spent on thinking AND on speaking: reasoning_format="hidden" strips the
+# thinking from the response but the tokens are still generated and still
+# billed against the same ceiling. So on an account whose OTPM ceiling is small,
+# the model can spend the entire budget thinking and emit nothing at all.
+#
+# That failure does not arrive as a truncation warning. It arrives as
+#     400 tool_use_failed ... 'failed_generation': ''
+# which reads like a malformed prompt and is nothing of the sort. Observed on a
+# 1000-OTPM account: three forced-classification retries, each one appending a
+# nudge to the prompt, all failing identically, then a fallback row.
+#
+# Reasoning is a luxury the budget has to afford. When it cannot, turn it off
+# and spend every available token on the answer — a structured classification
+# with a required tool call degrades far less from losing hidden reasoning than
+# it does from being cut off mid-sentence. Groq's qwen3 models accept exactly
+# two values here, "none" and "default"; anything else is a 400.
+REASONING_MIN_BUDGET = 2000
+_REASONING_EFFORT_ENV = os.environ.get("AEDI_REASONING_EFFORT", "").strip().lower()
+_reasoning_disabled_announced = False
+
+
+def reasoning_effort_for(budget: int):
+    """The reasoning_effort to send for a request allowed `budget` output
+    tokens, or None to leave the parameter off entirely (the model default).
+
+    The trigger is the account's discovered ceiling, NOT this round's ask. The
+    first round deliberately asks for only ROUND_MAX_TOKENS, and that modest
+    number is a choice, not a constraint — treating it as one would disable
+    reasoning on healthy accounts too and quietly change the behaviour the
+    committed metrics were measured under.
+
+    An explicit AEDI_REASONING_EFFORT always wins — including "default", which
+    is how you force reasoning back on for a squeezed account and see for
+    yourself what it costs.
+    """
+    global _reasoning_disabled_announced
+    if _REASONING_EFFORT_ENV:
+        return _REASONING_EFFORT_ENV
+    ceiling = _OUTPUT_TOKEN_CEILING
+    if ceiling is None or ceiling >= REASONING_MIN_BUDGET:
+        return None
+    if not _reasoning_disabled_announced:
+        _reasoning_disabled_announced = True
+        print(f"  This account caps output at {ceiling} tokens/request, below the "
+              f"{REASONING_MIN_BUDGET} a reasoning model needs to think and still answer — "
+              f"sending reasoning_effort=none so the whole budget goes to the answer. "
+              f"Set AEDI_REASONING_EFFORT=default to override.", file=sys.stderr)
+    return "none"
+
+
+class OutputBudgetTooSmall(RuntimeError):
+    """The model produced no output at all within the allowed budget, with
+    reasoning already disabled. Retrying cannot help — the configuration
+    itself is unworkable — so this is raised rather than looped on."""
+
+
+_TOOL_USE_FAILED_RE = re.compile(r"tool_use_failed", re.I)
+
+
+def is_starved_tool_call(err: str) -> bool:
+    """True for a tool_use_failed whose failed_generation is empty.
+
+    Groq reports two different things through tool_use_failed. If
+    failed_generation carries text, the model answered and the answer merely
+    failed the tool schema — recoverable, and _recover_failed_generation does
+    exactly that. If it is empty, the model emitted nothing, which on a
+    reasoning model means the output budget was consumed before it could speak.
+
+    The distinction decides what a retry should change. Re-sending with a longer
+    prompt cannot fix an empty generation; it is the one thing guaranteed to
+    make it worse.
+    """
+    if not _TOOL_USE_FAILED_RE.search(err):
+        return False
+    return bool(re.search(r"'failed_generation':\s*''", err) or
+                re.search(r'"failed_generation":\s*""', err)) or \
+        "failed_generation" not in err
+
+
 def _parse_wait_seconds(err: str, default: float) -> float:
     m = re.search(r"try again in (?:(\d+)m)?(\d+(?:\.\d+)?)s", err)
     if m:
@@ -762,16 +843,29 @@ def _run_agent_turn(pool: KeyPool, cache: ResponseCache, base_messages: list, ct
     result."""
     messages = list(base_messages)
     last_key_name = None
+    # Flipped on when a starved (empty) generation proves the budget cannot
+    # cover hidden reasoning as well as an answer. Persists for the rest of the
+    # turn: once proven, it is true for every remaining round too.
+    force_no_reasoning = False
     for round_num in range(max_rounds):
         force_classify = round_num == max_rounds - 1
-        local_attempts = force_local_retries if force_classify else 1
+        # A non-forced round still needs a second attempt available, so the
+        # reasoning-disabled retry below has somewhere to go. Only starvation
+        # uses it; every other error still raises on the first attempt.
+        local_attempts = force_local_retries if force_classify else 2
 
         norm = None
         for local_attempt in range(local_attempts):
+            budget = output_token_budget(CLASSIFY_MAX_TOKENS if force_classify else ROUND_MAX_TOKENS)
             kwargs = dict(model=MODEL, messages=messages, temperature=0.1,
-                          max_tokens=output_token_budget(
-                              CLASSIFY_MAX_TOKENS if force_classify else ROUND_MAX_TOKENS),
+                          # max_completion_tokens, not max_tokens: on a reasoning
+                          # model this budget covers thinking and answer together,
+                          # and Groq documents max_tokens as deprecated for them.
+                          max_completion_tokens=budget,
                           extra_body={"reasoning_format": "hidden"})
+            effort = "none" if force_no_reasoning else reasoning_effort_for(budget)
+            if effort:
+                kwargs["reasoning_effort"] = effort
             if force_classify:
                 kwargs["tools"] = [CLASSIFY_CHARGEBACK_TOOL]
                 kwargs["tool_choice"] = {"type": "function", "function": {"name": "classify_chargeback"}}
@@ -784,13 +878,34 @@ def _run_agent_turn(pool: KeyPool, cache: ResponseCache, base_messages: list, ct
                     last_key_name = key_name
                 break
             except Exception as e:
+                # A recoverable answer is still an answer — check before
+                # anything else, because it ends the round successfully.
                 if force_classify:
                     recovered = _recover_failed_generation(e)
                     if recovered is not None:
                         return recovered, last_key_name
-                    if local_attempt < local_attempts - 1:
-                        messages = messages + [{"role": "user", "content": FORCE_CLASSIFY_NUDGE}]
+
+                # Starvation is a budget problem, not a prompt problem, and it
+                # can hit ANY round — the first one asks for less, so it starves
+                # first. Free up tokens by dropping reasoning and retry the same
+                # prompt; appending a nudge here would spend the retry making
+                # the request bigger.
+                if is_starved_tool_call(str(e)):
+                    if not force_no_reasoning:
+                        force_no_reasoning = True
+                        print(f"  Model returned an empty generation at a {budget}-token budget "
+                              f"— retrying with reasoning disabled.", file=sys.stderr)
                         continue
+                    raise OutputBudgetTooSmall(
+                        f"The model produced no output at all within {budget} tokens, even "
+                        f"with reasoning disabled. That budget is too small for this task. "
+                        f"Raise the account's output-tokens-per-minute limit, or set "
+                        f"AEDI_MODEL to a model with more headroom."
+                    ) from e
+
+                if force_classify and local_attempt < local_attempts - 1:
+                    messages = messages + [{"role": "user", "content": FORCE_CLASSIFY_NUDGE}]
+                    continue
                 raise
 
         if not norm["tool_calls"]:
@@ -837,6 +952,12 @@ def analyze_case(pool: KeyPool, cache: ResponseCache, row: dict, ctx: dict, retr
                 raise ValueError(f"model response missing required fields: {sorted(missing)}")
             return apply_deterministic_overrides(sanitize(result), ctx)
         except Exception as e:
+            if isinstance(e, OutputBudgetTooSmall):
+                # Proven unwinnable: the model produced nothing even with
+                # reasoning off. Every remaining attempt would be identical, so
+                # stop rather than sleep three times on a certainty.
+                print(f"  {e}", file=sys.stderr)
+                break
             if isinstance(e, LLMCallError):
                 # The key that actually failed, attached at the point of
                 # failure — not re-guessed via another pool.next() call,
@@ -874,6 +995,15 @@ def format_row(case_id: str, result: dict) -> dict:
         "confidence": result["confidence"],
         "cited_evidence_ids": result["cited_evidence_ids"],
     }
+
+
+def is_fallback_result(result: dict) -> bool:
+    """True if this is the safe-fallback placeholder rather than a real
+    analysis. A live caller needs this: analyze_case degrades to
+    manual_review when every attempt fails, and manual_review is also a
+    perfectly legitimate verdict, so the two are indistinguishable from the
+    outside unless the fallback says so."""
+    return result.get("reason") == SAFE_FALLBACK["reason"]
 
 
 def is_fallback_row(r: dict) -> bool:

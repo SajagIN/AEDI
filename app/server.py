@@ -288,10 +288,17 @@ def analyze():
                   "detail": "evidence_sufficiency and the mechanical risk flags are pinned to the "
                             "code-computed values regardless of what the model returned"})
 
+    fallback = source == "live" and pipeline.is_fallback_result(result)
+    if fallback:
+        trace.append({"step": "safe_fallback", "kind": "blocked",
+                      "detail": "the model never returned a usable answer — this row is the "
+                                "safe fallback, not a decision. Check the server log."})
+
     cited = [c.strip() for c in str(result.get("cited_evidence_ids", "")).replace(",", ";").split(";") if c.strip()]
     gt = split_labels(split).get(case_id)
     return jsonify({
         "source": source,
+        "fallback": fallback,
         "result": result,
         "cited_evidence_ids": cited,
         "deterministic_flags": flags,
@@ -797,6 +804,16 @@ def rzp_decide():
                   "detail": "evidence_sufficiency and mechanical flags pinned to code-computed "
                             "values regardless of what the model returned"})
 
+
+    # analyze_case degrades to a manual_review fallback when every attempt
+    # fails, and manual_review is also a legitimate verdict. Returning 200 with
+    # no distinction would present "the model never answered" as a judgement.
+    fallback = pipeline.is_fallback_result(result)
+    if fallback:
+        trace.append({"step": "safe_fallback", "kind": "blocked",
+                      "detail": "the model never returned a usable answer — this row is the "
+                                "safe fallback, not a decision. Check the server log."})
+
     evidence_types = [i["type"] for i in sig["evidence_items"]]
     payload = razorpay_live.contest_payload(dispute, result, row, evidence_types)
     decision = result.get("decision")
@@ -813,6 +830,7 @@ def rzp_decide():
     })
 
     out = {
+        "fallback": fallback,
         "dispute_id": dispute["dispute_id"],
         "result": result,
         "deterministic_flags": flags,
