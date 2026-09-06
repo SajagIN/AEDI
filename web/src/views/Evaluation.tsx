@@ -19,9 +19,7 @@ export default function Evaluation({ health, split, setSplit }:
             <option key={k} value={k}>{k}{k === "held_out" ? " · opened once, at code freeze" : ""} · {v.cases} cases</option>
           ))}
         </select>
-        <p className="text-[12.5px] text-muted-foreground">
-          Computed in-process by <code className="rounded bg-secondary px-1.5 py-0.5 font-mono text-[11.5px]">code/evaluation/main.py</code> — nothing here is hard-coded.
-        </p>
+        <span className="dateline text-muted-foreground/60">computed live &middot; code/evaluation/main.py</span>
       </div>
 
       {!m && <div className="py-20 text-center text-[13px] text-muted-foreground">Running the evaluation harness…</div>}
@@ -47,10 +45,8 @@ export default function Evaluation({ health, split, setSplit }:
               <TriangleAlert size={15} />
               Incomplete run — {m.n_scored} of {m.n_cases} cases scored on {m.split}
             </div>
-            <p className="text-[13px] leading-relaxed text-muted-foreground">
-              The agent row below is measured on those {m.n_scored} case(s); both baseline rows are
-              measured on all {m.n_cases}. Different denominators, so do not read them against each
-              other. Finish the run first:
+            <p className="text-[12.5px] leading-relaxed text-muted-foreground">
+              Different denominators &mdash; don&rsquo;t read the rows against each other. Finish the run:
             </p>
             <pre className="mt-3 overflow-x-auto rounded-[3px] border border-border bg-background/70 p-3.5 font-mono text-[11.5px] leading-relaxed text-foreground/85">
 {`python code/main.py --input dataset/${m.split}/cases.csv \\
@@ -158,19 +154,23 @@ export default function Evaluation({ health, split, setSplit }:
 
       {m?.available && (
         <Card>
-          <CardHeader><CardTitle>Cost model assumptions — stated, not hidden</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Cost model</CardTitle></CardHeader>
           <CardContent>
-            <p className="max-w-[92ch] text-[13px] leading-relaxed text-muted-foreground">
-              A false positive (contested what should have been accepted) costs a flat{" "}
-              <b className="font-medium text-foreground">{inr(m.cost_model.false_positive_inr)}</b> in wasted
-              representment effort. A false negative (accepted a winnable case) costs the transaction amount
-              itself, read per case. A manual review costs{" "}
-              <b className="font-medium text-foreground">{inr(m.cost_model.manual_review_inr)}</b> of analyst time.
-              The bonus row prices bypassed reviews at{" "}
-              <b className="font-medium text-foreground">{pct(m.cost_model.bypassed_exposure_rate)}</b> of the
-              transaction amount — a stated assumption, deliberately kept out of the primary number so it can
-              never be silently absorbed into it.
-            </p>
+            <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
+              {[
+                ["False positive", inr(m.cost_model.false_positive_inr), "wasted representment effort"],
+                ["False negative", "transaction amount", "read per case"],
+                ["Manual review", inr(m.cost_model.manual_review_inr), "analyst time"],
+                ["Bypassed review", pct(m.cost_model.bypassed_exposure_rate), "of amount — never netted off"],
+              ].map(([k, v, note]) => (
+                <div key={k} className="flex items-baseline gap-2">
+                  <dt className="dateline text-muted-foreground/70">{k}</dt>
+                  <span className="leader h-3 flex-1" />
+                  <dd className="font-mono text-[12px] text-foreground">{v}</dd>
+                  <span className="text-[11px] text-muted-foreground/60">{note}</span>
+                </div>
+              ))}
+            </dl>
           </CardContent>
         </Card>
       )}

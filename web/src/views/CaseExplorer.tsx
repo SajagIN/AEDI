@@ -243,10 +243,7 @@ export default function CaseExplorer({ health, split, setSplit }:
                       <TriangleAlert size={15} /> The model never answered
                     </div>
                     <p className="text-[12.5px] leading-relaxed text-muted-foreground">
-                      Every attempt failed, so this is the safe fallback &mdash;{" "}
-                      <b className="font-mono text-[11.5px] text-foreground">manual_review</b> with zero
-                      confidence &mdash; not a judgement about the case. The server log has the cause; on a
-                      small free tier it is usually the output-token budget, logged as{" "}
+                      Safe fallback, not a judgement. Check the server log for{" "}
                       <b className="font-mono text-[11.5px] text-foreground">OTPM</b> or{" "}
                       <b className="font-mono text-[11.5px] text-foreground">tool_use_failed</b>.
                     </p>

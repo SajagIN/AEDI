@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -186,11 +187,8 @@ export default function Live() {
           </CardHeader>
           <CardContent className="space-y-4 text-[13px] leading-relaxed">
             <p className="text-muted-foreground">
-              Add <b className="font-medium text-foreground">test-mode</b> credentials to{" "}
-              <code className="rounded bg-secondary px-1.5 py-0.5 font-mono text-[12px]">.env</code>{" "}
-              and restart the console. Generate them from the Razorpay Dashboard with the
-              Test/Live toggle set to <b className="font-medium text-foreground">Test</b> —
-              Settings → API Keys.
+              Add test-mode keys to <code className="rounded bg-secondary px-1.5 py-0.5 font-mono text-[12px]">.env</code>{" "}
+              and restart. Dashboard &rarr; Settings &rarr; API Keys, with the toggle on Test.
             </p>
             <pre className="overflow-x-auto rounded-[3px] border border-border bg-background/70 p-4 font-mono text-[12px] leading-relaxed text-foreground/85">
 {`RAZORPAY_KEY_ID=rzp_test_your_key_id_here
@@ -203,10 +201,8 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
                 <ShieldAlert size={14} /> Live keys are refused
               </div>
               <p className="text-muted-foreground">
-                This console creates orders and can submit dispute responses. Accepting a dispute
-                is irreversible and moves real money, so a key beginning{" "}
-                <code className="font-mono">rzp_live_</code> is rejected at startup rather than
-                warned about.
+                Accepting a dispute is irreversible and moves real money, so{" "}
+                <code className="font-mono">rzp_live_</code> is rejected at startup.
               </p>
             </div>
             <Button variant="secondary" onClick={() => rzpStatus().then(setStatus)}>
@@ -221,26 +217,29 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
   /* ── connected ──────────────────────────────────────────────────────── */
   return (
     <div className="space-y-5">
-      {/* honesty banner — deliberately the first thing on the tab */}
+      {/* Honesty banner — still the first thing on the tab, but a line instead
+          of a paragraph. The full argument is one hover away; the part that
+          must never be missed is which badge means which, so that stays. */}
       <Card className="border-signal-info/25 bg-gradient-to-br from-signal-info/[.05] to-transparent animate-reveal">
-        <CardContent className="p-5">
-          <div className="flex flex-wrap items-start gap-3">
-            <AlertTriangle size={16} className="mt-0.5 shrink-0 text-signal-info" />
-            <div className="min-w-[280px] flex-1 text-[13px] leading-relaxed">
-              <b className="font-semibold">What is real on this tab.</b>{" "}
-              The order and the payment are genuine Razorpay test-mode objects — you can open your
-              Razorpay dashboard and see them. The merchant history, reason-code rules and the
-              decision all come from the real pipeline. The one thing that is{" "}
-              <b className="font-medium">not</b> real is the arrival of the chargeback: Razorpay has
-              no dispute-create API, because disputes are raised by the issuing bank, not the
-              merchant. Chargebacks raised here are marked{" "}
-              <Badge variant="warn" className="mx-0.5 align-middle">raised in console</Badge>
-              and are never submitted to Razorpay. A genuine dispute — arriving by webhook or already
-              on the account — is marked{" "}
-              <Badge variant="good" className="mx-0.5 align-middle">live from Razorpay</Badge>
-              and <i>is</i> actioned for real.
-            </div>
-          </div>
+        <CardContent className="flex flex-wrap items-center gap-x-2 gap-y-2 p-4 text-[12.5px]">
+          <AlertTriangle size={15} className="shrink-0 text-signal-info" />
+          <span className="text-foreground">Real: the order, the payment, the pipeline.</span>
+          <span className="text-muted-foreground">Stood in for: the chargeback&rsquo;s arrival.</span>
+          <HoverCard openDelay={100}>
+            <HoverCardTrigger asChild>
+              <button className="dateline border-b border-dashed border-border pb-0.5 text-muted-foreground/70 transition-colors hover:text-brass">
+                why
+              </button>
+            </HoverCardTrigger>
+            <HoverCardContent className="w-80">
+              Razorpay has no dispute-create API — disputes are raised by the issuing bank, not the
+              merchant. So chargebacks composed here are marked{" "}
+              <Badge variant="warn" className="mx-0.5 align-middle">raised in console</Badge> and are
+              never submitted. One that arrived by webhook is marked{" "}
+              <Badge variant="good" className="mx-0.5 align-middle">live from Razorpay</Badge> and{" "}
+              <i>is</i> actioned for real.
+            </HoverCardContent>
+          </HoverCard>
         </CardContent>
       </Card>
 
@@ -311,10 +310,7 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
                   {conn?.error || status?.reach_detail}
                 </p>
                 <p className="mt-3 text-[12px] text-muted-foreground">
-                  For a full layer-by-layer check, run{" "}
-                  <code className="rounded bg-secondary px-1.5 py-0.5 font-mono">
-                    python scripts/razorpay_doctor.py
-                  </code>
+                  <code className="rounded bg-secondary px-1.5 py-0.5 font-mono">python scripts/razorpay_doctor.py</code>
                 </p>
               </div>
             </div>
@@ -338,9 +334,8 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
                 <CardTitle>1 · Take a real test payment</CardTitle>
               </div>
               <CardDescription>
-                Creates a genuine order, then opens Razorpay Checkout. Pay with test card{" "}
-                <code className="font-mono text-foreground">4111 1111 1111 1111</code>, any future
-                expiry, any CVV — or UPI id <code className="font-mono text-foreground">success@razorpay</code>.
+                Test card <code className="font-mono text-foreground">4111 1111 1111 1111</code>, any future
+                expiry &middot; or UPI <code className="font-mono text-foreground">success@razorpay</code>.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -415,8 +410,8 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
                 <Badge variant="warn">stood in for</Badge>
               </div>
               <CardDescription>
-                In production this arrives as a <code className="font-mono">payment.dispute.created</code>{" "}
-                webhook. Here you compose it, because the API cannot create one.
+                Normally a <code className="font-mono">payment.dispute.created</code> webhook. Composed here &mdash;
+                the API cannot create one.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -514,11 +509,8 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
                     <AlertTriangle size={15} /> The model never answered
                   </div>
                   <p className="text-[12.5px] leading-relaxed text-muted-foreground">
-                    Every attempt failed, so this is the safe fallback &mdash;{" "}
-                    <b className="font-mono text-[11.5px] text-foreground">manual_review</b> with zero
-                    confidence &mdash; not a judgement about this chargeback. Nothing was sent to Razorpay.
-                    The server log has the cause; on a small free tier it is usually the output-token
-                    budget, logged as <b className="font-mono text-[11.5px] text-foreground">OTPM</b> or{" "}
+                    Safe fallback, not a judgement. Nothing was sent. Check the server log for{" "}
+                    <b className="font-mono text-[11.5px] text-foreground">OTPM</b> or{" "}
                     <b className="font-mono text-[11.5px] text-foreground">tool_use_failed</b>.
                   </p>
                 </div>
@@ -571,15 +563,13 @@ ${JSON.stringify(decision.razorpay_request.body ?? {}, null, 2)}`}
                       </pre>
                     ) : (
                       <p className="text-[12.5px] text-muted-foreground">
-                        Routed to a human reviewer — there is no automatic response to send. That is
-                        the coverage gap the Evaluation tab prices.
+                        Routed to a human &mdash; nothing to send. This is the coverage gap.
                       </p>
                     )}
                     {!decision.actionable && (
                       <p className="mt-2 text-[11.5px] leading-relaxed text-muted-foreground">
-                        Razorpay has no dispute with this id, so nothing is sent. Against a real
-                        dispute — one that arrived by webhook — this exact request is issued and
-                        the dispute moves to <span className="font-mono">under_review</span>.
+                        Not sent &mdash; Razorpay has no dispute with this id. Against a real one, this exact
+                        request goes out.
                       </p>
                     )}
                   </div>

@@ -32,10 +32,8 @@ export default function Adversarial({ health }: { health: Health }) {
             <ShieldCheck size={16} className="text-signal-info" />
             <CardTitle>Defense-only posture</CardTitle>
           </div>
-          <CardDescription className="max-w-[90ch]">
-            Fixed, publicly-documented injection patterns used as regression tests. No novel attack
-            generation, no third-party targeting, no offensive capability. It exists so the defense can be
-            measured rather than asserted.
+          <CardDescription>
+            Fixed, publicly-documented patterns as regression tests. No novel attack generation.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -63,11 +61,9 @@ export default function Adversarial({ health }: { health: Health }) {
       <Card className="animate-reveal">
         <CardHeader>
           <CardTitle>Injection playground</CardTitle>
-          <CardDescription className="max-w-[92ch]">
-            Every run uses one deliberately neutral case: a non-risky merchant, no amount anomaly, and evidence
-            that fully satisfies reason code 13.1. The correct answer is{" "}
-            <b className="font-medium text-signal-good">contest</b>. The narrative is the only variable — so if
-            the text moves the decision, a merchant just argued their way into a payout.
+          <CardDescription>
+            One neutral case, correct answer <b className="font-medium text-signal-good">contest</b>.
+            The narrative is the only variable.
           </CardDescription>
         </CardHeader>
         <CardContent>

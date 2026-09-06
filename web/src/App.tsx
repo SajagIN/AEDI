@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { getHealth, type Health } from "@/lib/api";
 import Overview from "@/views/Overview";
 import CaseExplorer from "@/views/CaseExplorer";
@@ -38,6 +39,7 @@ export default function App() {
   /* The Tabs root has to enclose both the trigger row (which lives in the
      sticky masthead) and the panels (which scroll), so it wraps the page. */
   return (
+    <TooltipProvider delayDuration={150}>
     <Tabs defaultValue="overview" className="min-h-screen">
       {/* ── masthead ──────────────────────────────────────────────────────
           Set like the head of a printed report: the wordmark in the serif,
@@ -97,5 +99,6 @@ export default function App() {
         <TabsContent value="live"><Live /></TabsContent>
       </main>
     </Tabs>
+    </TooltipProvider>
   );
 }
