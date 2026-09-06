@@ -153,6 +153,20 @@ component sources, kept in `web/`. **The built bundle is committed to `app/stati
 `python app/server.py` works on a machine with no Node installed — you only need the
 toolchain if you want to change the UI.
 
+The theme is documented at the top of `web/tailwind.config.js`. Two conventions are worth
+knowing before you edit a view:
+
+- **Colour carries meaning.** Neutrals all sit on hue 30 (warm ink) and brass is the only
+  bright, reserved for money, warnings about money, and the primary action on a screen.
+  Verdicts use the `signal-*` names — `good`, `bad`, `warn`, `info`, `alt` — never raw hues,
+  so a view never has to know which colour "won" is this month.
+- **Provenance has a typeface.** Anything the code computed is set in IBM Plex Mono;
+  anything the model wrote is set in Instrument Serif italic. That distinction is the
+  product's central claim, so it is spelled in the type rather than in a caption.
+
+Fonts are bundled through `@fontsource`, not fetched from a CDN — the console is meant to
+survive a demo table with no network.
+
 ```bash
 cd web
 npm install

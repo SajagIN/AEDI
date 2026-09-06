@@ -55,7 +55,7 @@ export default function CaseExplorer({ health, split, setSplit }:
       {/* toolbar */}
       <div className="flex flex-wrap items-center gap-3">
         <select value={split} onChange={(e) => setSplit(e.target.value)}
-          className="h-10 rounded-xl border border-input bg-card px-3.5 text-[13px] shadow-[inset_0_1px_2px_rgba(0,0,0,.03)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40">
+          className="h-9 rounded-[3px] border border-input bg-background/70 px-3 font-mono text-[12.5px] text-foreground shadow-inset transition-colors focus-visible:border-brass/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brass/30">
           {Object.entries(health.splits).map(([k, v]) => (
             <option key={k} value={k}>{k} · {v.cases} cases{v.has_predictions ? "" : " · no predictions"}</option>
           ))}
@@ -65,10 +65,10 @@ export default function CaseExplorer({ health, split, setSplit }:
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search case, merchant, reason code…"
             className="w-[280px] pl-9" />
         </div>
-        <div className="inline-flex gap-0.5 rounded-full bg-black/[.045] p-1">
+        <div className="inline-flex rounded-[3px] border border-border bg-background/60 p-0.5 shadow-inset">
           {FILTERS.map((f) => (
             <button key={f.id} onClick={() => setFilter(f.id)}
-              className={`rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-all ${filter === f.id ? "bg-white text-foreground shadow-[0_1px_3px_rgba(0,0,0,.1)]" : "text-muted-foreground hover:text-foreground"}`}>
+              className={`rounded-[2px] px-3 py-1.5 font-mono text-[10.5px] uppercase tracking-[.11em] transition-colors ${filter === f.id ? "bg-brass/15 text-brass" : "text-muted-foreground hover:text-foreground"}`}>
               {f.label}
             </button>
           ))}
@@ -81,7 +81,7 @@ export default function CaseExplorer({ health, split, setSplit }:
         <Card className="h-[calc(100vh-230px)] overflow-y-auto p-1.5">
           {visible.map((c) => (
             <button key={c.case_id} onClick={() => open(c.case_id)}
-              className={`mb-0.5 w-full rounded-2xl px-3.5 py-3 text-left transition-all ${sel === c.case_id ? "bg-ios-blue/[.08] ring-1 ring-ios-blue/25" : "hover:bg-secondary/60"}`}>
+              className={`mb-0.5 w-full rounded-[3px] px-3.5 py-3 text-left transition-all ${sel === c.case_id ? "bg-signal-info/[.08] ring-1 ring-signal-info/25" : "hover:bg-secondary/60"}`}>
               <div className="flex items-center justify-between gap-2">
                 <span className="font-mono text-[13px] font-semibold">{c.case_id}</span>
                 <span className="text-[12px] tnum text-muted-foreground">{num(c.amount)} {c.currency}</span>
@@ -89,9 +89,9 @@ export default function CaseExplorer({ health, split, setSplit }:
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <Badge variant="outline">{c.reason_code}</Badge>
                 {c.ground_truth && <Badge variant={decisionTone(c.ground_truth) as any}>{nice(c.ground_truth)}</Badge>}
-                {!!c.risk_flags.length && <Badge variant="red">{c.risk_flags.length} risk</Badge>}
-                {c.agrees === false && <X size={13} className="ml-auto text-ios-red" />}
-                {c.agrees === true && <Check size={13} className="ml-auto text-ios-green/60" />}
+                {!!c.risk_flags.length && <Badge variant="bad">{c.risk_flags.length} risk</Badge>}
+                {c.agrees === false && <X size={13} className="ml-auto text-signal-bad" />}
+                {c.agrees === true && <Check size={13} className="ml-auto text-signal-good/60" />}
               </div>
             </button>
           ))}
@@ -100,11 +100,11 @@ export default function CaseExplorer({ health, split, setSplit }:
 
         {/* detail */}
         {!detail ? (
-          <div className="flex h-[420px] items-center justify-center rounded-[20px] border border-dashed border-black/10 text-[14px] text-muted-foreground">
+          <div className="flex h-[420px] items-center justify-center rounded-[3px] border border-dashed border-border text-[14px] text-muted-foreground">
             <ChevronRight size={16} className="mr-1.5" /> Select a case to inspect it
           </div>
         ) : (
-          <div className="space-y-5 animate-fade-up">
+          <div className="space-y-5 animate-reveal">
             {/* header + facts */}
             <Card>
               <CardHeader>
@@ -162,9 +162,9 @@ export default function CaseExplorer({ health, split, setSplit }:
                   { l: "Amount anomaly", v: String(s?.amount_anomaly), bad: !!s?.amount_anomaly },
                   { l: "Merchant repeat pattern", v: String(s?.merchant_repeat_pattern), bad: !!s?.merchant_repeat_pattern },
                 ].map((x) => (
-                  <div key={x.l} className={`rounded-2xl border p-4 ${x.bad ? "border-ios-red/25 bg-ios-red/[.05]" : "border-ios-green/25 bg-ios-green/[.04]"}`}>
+                  <div key={x.l} className={`rounded-[3px] border p-4 ${x.bad ? "border-signal-bad/25 bg-signal-bad/[.05]" : "border-signal-good/25 bg-signal-good/[.04]"}`}>
                     <div className="text-[10.5px] font-medium uppercase tracking-[.06em] text-muted-foreground">{x.l}</div>
-                    <div className={`mt-1.5 font-mono text-[15px] font-medium ${x.bad ? "text-ios-red" : "text-ios-green"}`}>{x.v}</div>
+                    <div className={`mt-1.5 font-mono text-[15px] font-medium ${x.bad ? "text-signal-bad" : "text-signal-good"}`}>{x.v}</div>
                   </div>
                 ))}
               </CardContent>
@@ -179,7 +179,7 @@ export default function CaseExplorer({ health, split, setSplit }:
               <CardContent>
                 <div className="mb-4 flex flex-wrap gap-1.5">
                   {s?.required_types.length ? s.required_types.map((t) => (
-                    <Badge key={t} variant={present.has(t) ? "green" : "red"}>
+                    <Badge key={t} variant={present.has(t) ? "good" : "bad"}>
                       {present.has(t) ? <Check size={11} /> : <X size={11} />}{t}
                     </Badge>
                   )) : <Badge variant="outline">no requirement on file</Badge>}
@@ -189,14 +189,14 @@ export default function CaseExplorer({ health, split, setSplit }:
                   return (
                     <div key={e.evidence_id}>
                       <div className="flex gap-3 py-3">
-                        <span className={`h-fit shrink-0 rounded-lg border px-2 py-1 font-mono text-[11px] font-semibold transition-colors ${cited ? "border-ios-green/40 bg-ios-green/15 text-[#248A3D]" : "border-border bg-secondary text-muted-foreground"}`}>
+                        <span className={`h-fit shrink-0 rounded-[3px] border px-2 py-1 font-mono text-[11px] font-semibold transition-colors ${cited ? "border-signal-good/40 bg-signal-good/15 text-signal-good" : "border-border bg-secondary text-muted-foreground"}`}>
                           {e.evidence_id}
                         </span>
                         <div className="min-w-0">
-                          <div className="font-mono text-[12.5px] text-ios-blue">{e.type}</div>
+                          <div className="font-mono text-[12.5px] text-signal-info">{e.type}</div>
                           <div className="mt-0.5 text-[12.5px] leading-snug text-muted-foreground">{e.description}</div>
                         </div>
-                        {cited && <Badge variant="green" className="ml-auto h-fit">cited</Badge>}
+                        {cited && <Badge variant="good" className="ml-auto h-fit">cited</Badge>}
                       </div>
                       {i < s.evidence_items.length - 1 && <Separator />}
                     </div>
@@ -212,7 +212,7 @@ export default function CaseExplorer({ health, split, setSplit }:
                 <CardDescription>Untrusted input — authored by the party with money on the line.</CardDescription>
               </CardHeader>
               <CardContent>
-                <blockquote className="rounded-r-2xl border-l-[3px] border-ios-blue bg-secondary/50 px-4 py-3 text-[13px] italic leading-relaxed text-muted-foreground">
+                <blockquote className="rounded-r-2xl border-l-[3px] border-signal-info bg-secondary/50 px-4 py-3 text-[13px] italic leading-relaxed text-muted-foreground">
                   {detail.case.merchant_narrative || "[no narrative submitted]"}
                 </blockquote>
               </CardContent>
@@ -234,16 +234,16 @@ export default function CaseExplorer({ health, split, setSplit }:
                 </div>
 
                 {run?.error && (
-                  <div className="rounded-2xl border border-ios-orange/30 bg-ios-orange/[.06] p-4 text-[13px]">{run.error}</div>
+                  <div className="rounded-[3px] border border-signal-warn/30 bg-signal-warn/[.06] p-4 text-[13px]">{run.error}</div>
                 )}
 
                 {run && !run.error && (
                   <>
                     <div className="mb-4">
                       {run.trace.map((t, i) => (
-                        <div key={i} className="flex gap-3 py-2.5 animate-slide-in" style={{ animationDelay: `${i * 0.11}s` }}>
+                        <div key={i} className="flex gap-3 py-2.5 animate-reveal-x" style={{ animationDelay: `${i * 0.11}s` }}>
                           <div className="pt-0.5">
-                            <Badge variant={t.kind === "deterministic" ? "blue" : t.kind === "cache" ? "green" : "purple"}>{t.kind}</Badge>
+                            <Badge variant={t.kind === "deterministic" ? "info" : t.kind === "cache" ? "good" : "alt"}>{t.kind}</Badge>
                           </div>
                           <div className="min-w-0">
                             <div className="font-mono text-[12.5px] font-medium">{t.step}</div>
@@ -253,14 +253,14 @@ export default function CaseExplorer({ health, split, setSplit }:
                       ))}
                     </div>
 
-                    <div className="animate-fade-up rounded-2xl border border-black/[.07] bg-secondary/30 p-5"
+                    <div className="animate-reveal rounded-[3px] border border-border bg-secondary/30 p-5"
                       style={{ animationDelay: `${run.trace.length * 0.11}s` }}>
                       <div className="mb-3 flex flex-wrap items-center gap-2.5">
-                        <span className={`font-mono text-[24px] font-semibold tracking-tight ${run.result.decision === "contest" ? "text-ios-green" : run.result.decision === "accept_liability" ? "text-ios-orange" : "text-ios-blue"}`}>
+                        <span className={`font-mono text-[24px] font-semibold tracking-tight ${run.result.decision === "contest" ? "text-signal-good" : run.result.decision === "accept_liability" ? "text-signal-warn" : "text-signal-info"}`}>
                           {nice(run.result.decision)}
                         </span>
                         {run.ground_truth && (
-                          <Badge variant={run.agrees ? "green" : "red"}>
+                          <Badge variant={run.agrees ? "good" : "bad"}>
                             {run.agrees ? <><Check size={11} /> matches ground truth</> : <><CircleAlert size={11} /> truth: {nice(run.ground_truth)}</>}
                           </Badge>
                         )}
@@ -272,8 +272,8 @@ export default function CaseExplorer({ health, split, setSplit }:
                       </div>
                       <div className="mb-3 flex flex-wrap gap-1.5">
                         <Badge variant="outline">sufficiency: {nice(run.result.evidence_sufficiency)}</Badge>
-                        {run.result.risk_flags.map((f) => <Badge key={f} variant="red">{f}</Badge>)}
-                        {run.cited_evidence_ids.map((e) => <Badge key={e} variant="green">cited {e}</Badge>)}
+                        {run.result.risk_flags.map((f) => <Badge key={f} variant="bad">{f}</Badge>)}
+                        {run.cited_evidence_ids.map((e) => <Badge key={e} variant="good">cited {e}</Badge>)}
                       </div>
                       <Separator className="mb-3" />
                       <p className="text-[13px] leading-relaxed">{run.result.reason}</p>

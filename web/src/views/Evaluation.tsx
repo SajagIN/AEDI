@@ -14,7 +14,7 @@ export default function Evaluation({ health, split, setSplit }:
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-3">
         <select value={split} onChange={(e) => setSplit(e.target.value)}
-          className="h-10 rounded-xl border border-input bg-card px-3.5 text-[13px] shadow-[inset_0_1px_2px_rgba(0,0,0,.03)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40">
+          className="h-9 rounded-[3px] border border-input bg-background/70 px-3 font-mono text-[12.5px] text-foreground shadow-inset transition-colors focus-visible:border-brass/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brass/30">
           {Object.entries(health.splits).map(([k, v]) => (
             <option key={k} value={k}>{k}{k === "held_out" ? " · opened once, at code freeze" : ""} · {v.cases} cases</option>
           ))}
@@ -29,7 +29,7 @@ export default function Evaluation({ health, split, setSplit }:
       {m && !m.available && (
         <Card><CardContent className="p-10 text-center">
           <p className="text-[13.5px] text-muted-foreground">{m.message}</p>
-          <code className="mt-3 inline-block rounded-lg bg-secondary px-3 py-2 font-mono text-[12px]">
+          <code className="mt-3 inline-block rounded-[3px] bg-secondary px-3 py-2 font-mono text-[12px]">
             python code/main.py --input dataset/{m.split}/cases.csv --output dataset/{m.split}/output.csv
           </code>
         </CardContent></Card>
@@ -41,9 +41,9 @@ export default function Evaluation({ health, split, setSplit }:
           comparable — say so above the tables rather than letting someone read
           them side by side. */}
       {m?.available && m.complete === false && (
-        <Card className="animate-fade-up border-ios-orange/30 bg-ios-orange/[.06]">
+        <Card className="animate-reveal border-signal-warn/30 bg-signal-warn/[.06]">
           <CardContent className="p-5">
-            <div className="mb-1.5 flex items-center gap-2 text-[14px] font-semibold text-[#B25000]">
+            <div className="mb-1.5 flex items-center gap-2 text-[14px] font-semibold text-signal-warn">
               <TriangleAlert size={15} />
               Incomplete run — {m.n_scored} of {m.n_cases} cases scored on {m.split}
             </div>
@@ -52,7 +52,7 @@ export default function Evaluation({ health, split, setSplit }:
               measured on all {m.n_cases}. Different denominators, so do not read them against each
               other. Finish the run first:
             </p>
-            <pre className="mt-3 overflow-x-auto rounded-xl bg-[#1c1c1e] p-3.5 font-mono text-[11.5px] leading-relaxed text-[#e5e5ea]">
+            <pre className="mt-3 overflow-x-auto rounded-[3px] border border-border bg-background/70 p-3.5 font-mono text-[11.5px] leading-relaxed text-foreground/85">
 {`python code/main.py --input dataset/${m.split}/cases.csv \\
   --output dataset/${m.split}/output.csv`}
             </pre>
@@ -61,12 +61,12 @@ export default function Evaluation({ health, split, setSplit }:
       )}
 
       {m?.available && m.blocks.map((b, bi) => (
-        <Card key={b.name} className="animate-fade-up" style={{ animationDelay: `${bi * 0.06}s` }}>
+        <Card key={b.name} className="animate-reveal" style={{ animationDelay: `${bi * 0.06}s` }}>
           <CardHeader>
             <div className="flex items-baseline gap-2.5">
               <CardTitle className="text-[16px]">{b.name}</CardTitle>
               <span className="text-[12px] text-muted-foreground tnum">n = {b.n} scored</span>
-              {bi === 0 && <Badge variant="blue" className="ml-auto">this system</Badge>}
+              {bi === 0 && <Badge variant="info" className="ml-auto">this system</Badge>}
               {bi > 0 && <Badge variant="outline" className="ml-auto">baseline</Badge>}
             </div>
           </CardHeader>
@@ -93,11 +93,11 @@ export default function Evaluation({ health, split, setSplit }:
                           const err = !diag && v > 0 && a !== "manual_review";
                           return (
                             <td key={p}
-                              className={`rounded-xl border py-3 text-center text-[15px] font-semibold tnum ${
-                                diag && v > 0 ? "border-ios-green/35 bg-ios-green/[.08] text-[#248A3D]"
-                                : err ? "border-ios-red/30 bg-ios-red/[.06] text-ios-red"
-                                : v === 0 ? "border-black/[.05] bg-secondary/40 font-normal text-muted-foreground/50"
-                                : "border-black/[.06] bg-secondary/60"}`}>
+                              className={`rounded-[3px] border py-3 text-center text-[15px] font-semibold tnum ${
+                                diag && v > 0 ? "border-signal-good/35 bg-signal-good/[.08] text-signal-good"
+                                : err ? "border-signal-bad/30 bg-signal-bad/[.06] text-signal-bad"
+                                : v === 0 ? "border-border bg-secondary/40 font-normal text-muted-foreground/50"
+                                : "border-border bg-secondary/60"}`}>
                               {v}
                             </td>
                           );
@@ -123,7 +123,7 @@ export default function Evaluation({ health, split, setSplit }:
                       <span className="text-muted-foreground">{x.l}</span>
                       <span className="font-medium tnum">{pct(x.v)}</span>
                     </div>
-                    <Progress value={(x.v ?? 0) * 100} barClassName={x.g ? "bg-ios-green" : "bg-ios-blue"} />
+                    <Progress value={(x.v ?? 0) * 100} barClassName={x.g ? "bg-signal-good" : "bg-signal-info"} />
                   </div>
                 ))}
                 <div>
@@ -131,7 +131,7 @@ export default function Evaluation({ health, split, setSplit }:
                     <span className="text-muted-foreground">coverage</span>
                     <span className="font-medium tnum">{pct(b.coverage)}</span>
                   </div>
-                  <Progress value={b.coverage * 100} barClassName="bg-ios-purple" />
+                  <Progress value={b.coverage * 100} barClassName="bg-signal-alt" />
                 </div>
               </div>
             </div>
@@ -146,7 +146,7 @@ export default function Evaluation({ health, split, setSplit }:
                 ["Bypassed reviews", String(b.cost.n_bypassed_review)],
                 ["Unpriced exposure / 100", inr(b.cost.bypassed_review_exposure_per_100_inr)],
               ].map(([l, v]) => (
-                <div key={l} className="rounded-2xl border border-black/[.06] bg-secondary/40 p-3.5">
+                <div key={l} className="rounded-[3px] border border-border bg-secondary/40 p-3.5">
                   <div className="text-[10px] font-medium uppercase tracking-[.05em] text-muted-foreground">{l}</div>
                   <div className="mt-1 text-[17px] font-semibold tnum">{v}</div>
                 </div>

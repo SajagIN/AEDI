@@ -1,12 +1,19 @@
 import { useEffect, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { getHealth, type Health } from "@/lib/api";
 import Overview from "@/views/Overview";
 import CaseExplorer from "@/views/CaseExplorer";
 import Evaluation from "@/views/Evaluation";
 import Adversarial from "@/views/Adversarial";
 import Live from "@/views/Live";
+
+const TABS = [
+  { v: "overview", n: "Overview", i: "01" },
+  { v: "cases", n: "Case Explorer", i: "02" },
+  { v: "evaluation", n: "Evaluation", i: "03" },
+  { v: "adversarial", n: "Adversarial", i: "04" },
+  { v: "live", n: "Live · Razorpay", i: "05" },
+];
 
 export default function App() {
   const [health, setHealth] = useState<Health | null>(null);
@@ -26,56 +33,69 @@ export default function App() {
     });
   }, []);
 
+  const live = health?.mode === "live";
+
+  /* The Tabs root has to enclose both the trigger row (which lives in the
+     sticky masthead) and the panels (which scroll), so it wraps the page. */
   return (
-    <div className="min-h-screen">
-      <header className="sticky top-0 z-50 border-b border-black/[.06] bg-white/70 glass">
-        <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-6 px-6">
-          <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="AEDI" className="h-9 w-9 rounded-[10px] shadow-ios" />
-            <div className="leading-none">
-              <div className="text-[17px] font-semibold tracking-[.18em]">AEDI</div>
-              <div className="mt-1 text-[10px] uppercase tracking-[.1em] text-muted-foreground">
-                Because a hunch isn't evidence
-              </div>
+    <Tabs defaultValue="overview" className="min-h-screen">
+      {/* ── masthead ──────────────────────────────────────────────────────
+          Set like the head of a printed report: the wordmark in the serif,
+          everything else in small monospace caps, all of it sitting on a
+          hairline rule. */}
+      <header className="sticky top-0 z-50 border-b border-border bg-background/85 backdrop-blur-xl">
+        <div className="mx-auto max-w-[1400px] px-6">
+          <div className="flex h-[68px] items-center gap-5">
+            <img src="/logo.png" alt="" className="h-8 w-8 rounded-[3px] ring-1 ring-brass/25" />
+
+            <div className="flex items-baseline gap-3">
+              <span className="font-display text-[27px] leading-none tracking-[.02em]">AEDI</span>
+              <span className="hidden font-display text-[15px] italic leading-none text-brass sm:inline">
+                because a hunch isn&rsquo;t evidence
+              </span>
+            </div>
+
+            <div className="ml-auto flex items-center gap-5">
+              <span className="dateline hidden text-muted-foreground/70 lg:inline">
+                Chargeback&nbsp;Evidence&nbsp;Responder
+              </span>
+
+              {health && (
+                <span className="flex items-center gap-2 rounded-[2px] border border-border bg-secondary/60 px-2.5 py-1.5">
+                  <span className={`h-1.5 w-1.5 rounded-full ${live ? "animate-ember bg-signal-good" : "bg-signal-info"}`} />
+                  <span className="dateline text-foreground/80">{live ? health.model : "Replay"}</span>
+                  <span className="dateline text-muted-foreground/60">{live ? "live" : "no key needed"}</span>
+                </span>
+              )}
             </div>
           </div>
 
-          <Tabs value="" className="ml-auto hidden md:block" />
-
-          <div className="ml-auto flex items-center gap-3">
-            {health && (
-              <Badge variant={health.mode === "live" ? "green" : "blue"} className="h-7 px-3">
-                <span className={`mr-1 h-1.5 w-1.5 rounded-full ${health.mode === "live" ? "bg-ios-green" : "bg-ios-blue"}`} />
-                {health.mode === "live" ? `Live · ${health.model}` : "Replay · no key needed"}
-              </Badge>
-            )}
-          </div>
+          <TabsList className="w-full justify-start overflow-x-auto border-b-0">
+            {TABS.map((t, i) => (
+              <TabsTrigger key={t.v} value={t.v} className="reveal group" style={{ "--i": i } as React.CSSProperties}>
+                <span className="mr-2 text-[9px] text-muted-foreground/40 transition-colors group-data-[state=active]:text-brass/60">
+                  {t.i}
+                </span>
+                {t.n}
+              </TabsTrigger>
+            ))}
+          </TabsList>
         </div>
       </header>
 
-      <main className="mx-auto max-w-[1400px] px-6 pb-24 pt-7">
-        <Tabs defaultValue="overview">
-          <TabsList className="mb-7">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="cases">Case Explorer</TabsTrigger>
-            <TabsTrigger value="evaluation">Evaluation</TabsTrigger>
-            <TabsTrigger value="adversarial">Adversarial</TabsTrigger>
-            <TabsTrigger value="live">Live · Razorpay</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview"><Overview split={split} /></TabsContent>
-          <TabsContent value="cases">
-            {health && <CaseExplorer health={health} split={split} setSplit={setSplit} />}
-          </TabsContent>
-          <TabsContent value="evaluation">
-            {health && <Evaluation health={health} split={split} setSplit={setSplit} />}
-          </TabsContent>
-          <TabsContent value="adversarial">
-            {health && <Adversarial health={health} />}
-          </TabsContent>
-          <TabsContent value="live"><Live /></TabsContent>
-        </Tabs>
+      <main className="mx-auto max-w-[1400px] px-6 pb-28 pt-8">
+        <TabsContent value="overview"><Overview split={split} /></TabsContent>
+        <TabsContent value="cases">
+          {health && <CaseExplorer health={health} split={split} setSplit={setSplit} />}
+        </TabsContent>
+        <TabsContent value="evaluation">
+          {health && <Evaluation health={health} split={split} setSplit={setSplit} />}
+        </TabsContent>
+        <TabsContent value="adversarial">
+          {health && <Adversarial health={health} />}
+        </TabsContent>
+        <TabsContent value="live"><Live /></TabsContent>
       </main>
-    </div>
+    </Tabs>
   );
 }

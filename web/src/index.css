@@ -1,46 +1,171 @@
+/*  AEDI console — "Ledger Noir"
+ *
+ *  Fonts are bundled, not fetched. The console is meant to run on a laptop at
+ *  a demo table with no guarantee of network, and a design that collapses to
+ *  Times New Roman when the wifi drops is not a design.
+ *
+ *  Only the Latin subsets are pulled in. Fontsource ships Greek, Cyrillic and
+ *  Vietnamese cuts as well, which would put ~30 font files into the committed
+ *  bundle that this interface will never render a glyph from.
+ */
+@import "@fontsource/instrument-serif/latin-400.css";
+@import "@fontsource/instrument-serif/latin-400-italic.css";
+@import "@fontsource/ibm-plex-mono/latin-400.css";
+@import "@fontsource/ibm-plex-mono/latin-500.css";
+@import "@fontsource/ibm-plex-mono/latin-600.css";
+
+/*  The variable sans is declared by hand: its packaged stylesheet has no
+ *  per-subset entry point and would drag in all six subsets at once. */
+@font-face {
+  font-family: "IBM Plex Sans Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 700;
+  src: url("../node_modules/@fontsource-variable/ibm-plex-sans/files/ibm-plex-sans-latin-wght-normal.woff2") format("woff2-variations");
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 240 20% 99%;
-    --foreground: 240 6% 10%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 6% 10%;
-    --primary: 211 100% 50%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 240 5% 96%;
-    --secondary-foreground: 240 6% 10%;
-    --muted: 240 5% 96%;
-    --muted-foreground: 240 4% 46%;
-    --accent: 211 100% 96%;
-    --accent-foreground: 211 100% 40%;
-    --destructive: 4 100% 59%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 240 6% 90%;
-    --input: 240 6% 90%;
-    --ring: 211 100% 50%;
-    --radius: 0.875rem;
+    /* Warm ink, not blue-black. Every neutral sits on hue 30 so the brass
+       never looks like it was dropped in from another palette. */
+    --background: 30 10% 4%;
+    --foreground: 38 41% 89%;
+    --card: 30 6% 7%;
+    --card-foreground: 38 41% 89%;
+    --primary: 37 75% 56%;
+    --primary-foreground: 34 62% 8%;
+    --secondary: 30 9% 11%;
+    --secondary-foreground: 38 30% 82%;
+    --muted: 30 9% 11%;
+    --muted-foreground: 31 10% 57%;
+    --accent: 37 40% 14%;
+    --accent-foreground: 37 75% 62%;
+    --destructive: 12 74% 59%;
+    --destructive-foreground: 34 62% 8%;
+    --border: 30 11% 15%;
+    --input: 30 11% 15%;
+    --ring: 37 75% 56%;
+    --radius: 0.25rem;
+
+    /* Ledger geometry — the rule spacing the whole page is written on. */
+    --rule: 32px;
   }
+
   * { @apply border-border; }
-  html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    color-scheme: dark;
+  }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
+    /* Four stacked layers make the ground feel like paper under a lamp:
+       the ruled lines of a ledger, a faint left margin rule, the warm pool of
+       light in the top-left, and a cold spill from the far corner. */
     background-image:
-      radial-gradient(60rem 30rem at 10% -10%, rgba(0,122,255,.06), transparent 60%),
-      radial-gradient(50rem 28rem at 95% 0%, rgba(175,82,222,.05), transparent 55%);
+      repeating-linear-gradient(
+        to bottom,
+        transparent 0 calc(var(--rule) - 1px),
+        rgba(239, 231, 217, 0.022) calc(var(--rule) - 1px) var(--rule)
+      ),
+      radial-gradient(48rem 34rem at 12% -8%, rgba(227, 164, 60, 0.10), transparent 62%),
+      radial-gradient(40rem 30rem at 100% 4%, rgba(123, 165, 198, 0.055), transparent 58%),
+      radial-gradient(60rem 40rem at 50% 120%, rgba(227, 164, 60, 0.035), transparent 65%);
     background-attachment: fixed;
-    letter-spacing: -0.011em;
+    font-feature-settings: "cv05" 1, "ss03" 1;
   }
-  h1,h2,h3,h4 { letter-spacing: -0.022em; }
-  ::-webkit-scrollbar { width: 10px; height: 10px; }
-  ::-webkit-scrollbar-thumb { @apply bg-black/15 rounded-full; border: 3px solid transparent; background-clip: content-box; }
-  ::-webkit-scrollbar-thumb:hover { @apply bg-black/25; background-clip: content-box; }
+
+  /* Film grain. Without it the flat fields band badly on a projector, which
+     is exactly where this gets shown. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.32;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E");
+  }
+
+  #root { position: relative; z-index: 1; }
+
+  h1, h2, h3, h4 { @apply font-display; font-weight: 400; letter-spacing: 0; }
+
+  ::selection { background: rgba(227, 164, 60, 0.28); color: #F7EFE2; }
+
+  ::-webkit-scrollbar { width: 11px; height: 11px; }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(227, 164, 60, 0.22);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 99px;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(227, 164, 60, 0.42); background-clip: content-box; }
   ::-webkit-scrollbar-track { background: transparent; }
+
+  /* The number columns must line up; that is half of why anyone trusts a
+     ledger. Applies everywhere, not opt-in. */
+  table, .tnum, input[type="number"] { font-variant-numeric: tabular-nums; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: .01ms !important;
+    }
+  }
 }
 
 @layer utilities {
-  .glass { backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); }
+  /* Staggered page load. Set --i on each child; the delay follows. */
+  .reveal { animation: reveal .55s cubic-bezier(.16,1,.3,1) both; animation-delay: calc(var(--i, 0) * 55ms); }
+  .reveal-x { animation: reveal-x .5s cubic-bezier(.16,1,.3,1) both; animation-delay: calc(var(--i, 0) * 45ms); }
+
   .tnum { font-variant-numeric: tabular-nums; }
+
+  /* Small caps label — the running head of a ledger column. */
+  .dateline {
+    @apply font-mono uppercase;
+    font-size: 10px;
+    letter-spacing: .18em;
+  }
+
+  /* A rule that draws itself, used to underline mastheads and section heads. */
+  .rule-in { transform-origin: left; animation: rule .7s cubic-bezier(.16,1,.3,1) both; }
+
+  /* Dotted leader, like a printed statement line: label ......... value */
+  .leader {
+    background-image: radial-gradient(circle, hsl(var(--muted-foreground) / .5) 1px, transparent 1px);
+    background-size: 5px 1px;
+    background-repeat: repeat-x;
+    background-position: 0 bottom;
+  }
+
+  /* One pass of lamplight across a freshly computed figure. */
+  .sweep {
+    background-image: linear-gradient(100deg, transparent 20%, rgba(242,188,94,.55) 42%, transparent 64%);
+    background-size: 220% 100%;
+    background-repeat: no-repeat;
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
+
+  /* Panels lift toward the lamp on hover — the only hover affordance used,
+     so it always means "this is interactive". */
+  .lift { transition: transform .35s cubic-bezier(.16,1,.3,1), box-shadow .35s, border-color .35s; }
+  .lift:hover { transform: translateY(-2px); border-color: rgba(227,164,60,.28); }
+
+  .grid-hair {
+    background-image:
+      linear-gradient(hsl(var(--border)) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border)) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
 }

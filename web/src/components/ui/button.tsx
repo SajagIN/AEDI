@@ -3,18 +3,21 @@ import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
+/* Brass is the only bright in the palette, so a filled brass button is
+   unmistakably THE action on a screen. Everything else is a hairline. */
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-40 active:scale-[.97]",
+  "group relative inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[3px] font-mono text-[11.5px] uppercase tracking-[.11em] transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-35 active:translate-y-px",
   {
     variants: {
       variant: {
-        default: "bg-ios-blue text-white shadow-[0_1px_2px_rgba(0,0,0,.08),0_6px_16px_-6px_rgba(0,122,255,.5)] hover:brightness-105",
-        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/70",
-        outline: "border border-border bg-card hover:bg-secondary/60",
-        ghost: "hover:bg-secondary/70",
-        destructive: "bg-ios-red text-white hover:brightness-105",
+        default:
+          "bg-brass text-brass-ink shadow-[0_1px_0_rgba(255,235,200,.35)_inset,0_6px_18px_-8px_rgba(227,164,60,.85)] hover:bg-brass-bright",
+        secondary: "border border-border bg-secondary text-secondary-foreground hover:border-brass/30 hover:text-foreground",
+        outline: "border border-border bg-transparent text-muted-foreground hover:border-brass/40 hover:text-brass",
+        ghost: "text-muted-foreground hover:bg-secondary hover:text-foreground",
+        destructive: "bg-signal-bad text-brass-ink hover:brightness-110",
       },
-      size: { default: "h-10 px-5", sm: "h-8 px-3.5 text-[13px]", lg: "h-12 px-7 text-[15px]", icon: "h-9 w-9" },
+      size: { default: "h-9 px-4", sm: "h-7 px-3 text-[10.5px]", lg: "h-11 px-6 text-[12.5px]", icon: "h-8 w-8" },
     },
     defaultVariants: { variant: "default", size: "default" },
   }

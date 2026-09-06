@@ -2,18 +2,22 @@ import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
+/* Badges are ledger stamps: square, monospace, letterspaced, tinted rather
+   than filled. They label provenance and verdicts, so they must never look
+   like buttons. */
 const badgeVariants = cva(
-  "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors whitespace-nowrap",
+  "inline-flex items-center gap-1 whitespace-nowrap rounded-[2px] border px-1.5 py-[3px] font-mono text-[10px] uppercase leading-none tracking-[.1em]",
   {
     variants: {
       variant: {
-        default: "border-transparent bg-secondary text-secondary-foreground",
-        outline: "border-border text-muted-foreground",
-        blue: "border-ios-blue/20 bg-ios-blue/10 text-ios-blue",
-        green: "border-ios-green/25 bg-ios-green/10 text-[#248A3D]",
-        orange: "border-ios-orange/25 bg-ios-orange/10 text-[#B25000]",
-        red: "border-ios-red/20 bg-ios-red/10 text-ios-red",
-        purple: "border-ios-purple/20 bg-ios-purple/10 text-ios-purple",
+        default: "border-border bg-secondary text-secondary-foreground",
+        outline: "border-border/80 text-muted-foreground",
+        brass: "border-brass/35 bg-brass/[.12] text-brass",
+        info: "border-signal-info/30 bg-signal-info/[.10] text-signal-info",
+        good: "border-signal-good/30 bg-signal-good/[.10] text-signal-good",
+        warn: "border-signal-warn/35 bg-signal-warn/[.10] text-signal-warn",
+        bad: "border-signal-bad/30 bg-signal-bad/[.10] text-signal-bad",
+        alt: "border-signal-alt/30 bg-signal-alt/[.10] text-signal-alt",
       },
     },
     defaultVariants: { variant: "default" },

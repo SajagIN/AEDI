@@ -35,8 +35,8 @@ const STEP_LABELS = ["Payment", "Chargeback", "AEDI decides", "Respond"];
 
 function OriginBadge({ origin }: { origin: string }) {
   return origin === "razorpay"
-    ? <Badge variant="green"><Link2 size={10} />live from Razorpay</Badge>
-    : <Badge variant="orange"><CircleDot size={10} />raised in console</Badge>;
+    ? <Badge variant="good"><Link2 size={10} />live from Razorpay</Badge>
+    : <Badge variant="warn"><CircleDot size={10} />raised in console</Badge>;
 }
 
 export default function Live() {
@@ -176,10 +176,10 @@ export default function Live() {
   if (status && status.state !== "configured") {
     return (
       <div className="space-y-5">
-        <Card className="border-ios-orange/30 bg-ios-orange/[.04] animate-fade-up">
+        <Card className="border-signal-warn/30 bg-signal-warn/[.04] animate-reveal">
           <CardHeader>
             <div className="flex items-center gap-2">
-              <WifiOff size={16} className="text-ios-orange" />
+              <WifiOff size={16} className="text-signal-warn" />
               <CardTitle>Razorpay not connected</CardTitle>
             </div>
             <CardDescription>{status.detail}</CardDescription>
@@ -192,14 +192,14 @@ export default function Live() {
               Test/Live toggle set to <b className="font-medium text-foreground">Test</b> —
               Settings → API Keys.
             </p>
-            <pre className="overflow-x-auto rounded-2xl bg-[#1c1c1e] p-4 font-mono text-[12px] leading-relaxed text-[#e5e5ea]">
+            <pre className="overflow-x-auto rounded-[3px] border border-border bg-background/70 p-4 font-mono text-[12px] leading-relaxed text-foreground/85">
 {`RAZORPAY_KEY_ID=rzp_test_your_key_id_here
 RAZORPAY_KEY_SECRET=your_key_here
 # optional — lets real disputes arrive by webhook
 RAZORPAY_WEBHOOK_SECRET=your_key_here`}
             </pre>
-            <div className="rounded-2xl border border-ios-red/25 bg-ios-red/[.05] p-4">
-              <div className="mb-1 flex items-center gap-2 font-medium text-ios-red">
+            <div className="rounded-[3px] border border-signal-bad/25 bg-signal-bad/[.05] p-4">
+              <div className="mb-1 flex items-center gap-2 font-medium text-signal-bad">
                 <ShieldAlert size={14} /> Live keys are refused
               </div>
               <p className="text-muted-foreground">
@@ -222,10 +222,10 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
   return (
     <div className="space-y-5">
       {/* honesty banner — deliberately the first thing on the tab */}
-      <Card className="border-ios-blue/25 bg-gradient-to-br from-ios-blue/[.05] to-transparent animate-fade-up">
+      <Card className="border-signal-info/25 bg-gradient-to-br from-signal-info/[.05] to-transparent animate-reveal">
         <CardContent className="p-5">
           <div className="flex flex-wrap items-start gap-3">
-            <AlertTriangle size={16} className="mt-0.5 shrink-0 text-ios-blue" />
+            <AlertTriangle size={16} className="mt-0.5 shrink-0 text-signal-info" />
             <div className="min-w-[280px] flex-1 text-[13px] leading-relaxed">
               <b className="font-semibold">What is real on this tab.</b>{" "}
               The order and the payment are genuine Razorpay test-mode objects — you can open your
@@ -234,10 +234,10 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
               <b className="font-medium">not</b> real is the arrival of the chargeback: Razorpay has
               no dispute-create API, because disputes are raised by the issuing bank, not the
               merchant. Chargebacks raised here are marked{" "}
-              <Badge variant="orange" className="mx-0.5 align-middle">raised in console</Badge>
+              <Badge variant="warn" className="mx-0.5 align-middle">raised in console</Badge>
               and are never submitted to Razorpay. A genuine dispute — arriving by webhook or already
               on the account — is marked{" "}
-              <Badge variant="green" className="mx-0.5 align-middle">live from Razorpay</Badge>
+              <Badge variant="good" className="mx-0.5 align-middle">live from Razorpay</Badge>
               and <i>is</i> actioned for real.
             </div>
           </div>
@@ -248,18 +248,18 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
       <Card>
         <CardContent className="flex flex-wrap items-center gap-x-6 gap-y-3 p-5">
           <div className="flex items-center gap-2">
-            <Wifi size={15} className="text-ios-green" />
+            <Wifi size={15} className="text-signal-good" />
             <span className="text-[14px] font-semibold">Razorpay test mode</span>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-[12px] text-muted-foreground">
             <Badge variant="outline" className="font-mono">{status?.key_id_masked}</Badge>
             {status?.webhook_secret_set
-              ? <Badge variant="green">webhook secret set</Badge>
+              ? <Badge variant="good">webhook secret set</Badge>
               : <Badge variant="outline">no webhook secret</Badge>}
-            {status?.reachable === true && <Badge variant="green"><CheckCircle2 size={10} />credentials accepted</Badge>}
-            {status?.reachable === false && <Badge variant="red">{status.reach_detail}</Badge>}
+            {status?.reachable === true && <Badge variant="good"><CheckCircle2 size={10} />credentials accepted</Badge>}
+            {status?.reachable === false && <Badge variant="bad">{status.reach_detail}</Badge>}
             {status?.real_disputes != null && (
-              <Badge variant={status.real_disputes ? "green" : "outline"}>
+              <Badge variant={status.real_disputes ? "good" : "outline"}>
                 {status.real_disputes} real dispute{status.real_disputes === 1 ? "" : "s"} on account
               </Badge>
             )}
@@ -270,21 +270,23 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
         </CardContent>
       </Card>
 
-      {/* stepper */}
-      <div className="flex flex-wrap items-center gap-2">
+      {/* stepper — a ruled run of stages, not pills. The completed ones are
+          struck in jade, the live one carries the brass lamp. */}
+      <div className="flex flex-wrap items-stretch gap-0 overflow-hidden rounded-[3px] border border-border">
         {STEP_LABELS.map((label, i) => (
-          <div key={label} className="flex items-center gap-2">
-            <div className={`flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-[12.5px] font-medium transition-colors
-              ${i < step ? "border-ios-green/30 bg-ios-green/10 text-ios-green"
-                : i === step ? "border-ios-blue/35 bg-ios-blue/10 text-ios-blue"
-                : "border-black/[.07] bg-secondary/50 text-muted-foreground"}`}>
-              <span className={`flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-semibold
-                ${i < step ? "bg-ios-green text-white" : i === step ? "bg-ios-blue text-white" : "bg-black/10 text-muted-foreground"}`}>
-                {i < step ? "✓" : i + 1}
-              </span>
+          <div key={label}
+            className={`flex flex-1 items-center gap-2.5 border-r border-border px-3.5 py-2.5 last:border-r-0 transition-colors
+              ${i < step ? "bg-signal-good/[.07]" : i === step ? "bg-brass/[.09]" : "bg-card/40"}`}>
+            <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-[2px] font-mono text-[10px]
+              ${i < step ? "bg-signal-good/20 text-signal-good"
+                : i === step ? "animate-ember bg-brass text-brass-ink"
+                : "bg-secondary text-muted-foreground/60"}`}>
+              {i < step ? "\u2713" : i + 1}
+            </span>
+            <span className={`font-mono text-[10.5px] uppercase tracking-[.1em]
+              ${i < step ? "text-signal-good" : i === step ? "text-brass" : "text-muted-foreground/70"}`}>
               {label}
-            </div>
-            {i < STEP_LABELS.length - 1 && <div className="h-px w-4 bg-black/10" />}
+            </span>
           </div>
         ))}
       </div>
@@ -292,12 +294,12 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
       {/* A failing connection has to be loud. The keys being present in .env
           says nothing about whether Razorpay accepts them. */}
       {(conn || status?.reachable === false) && (
-        <Card className="animate-fade-up border-ios-red/35 bg-ios-red/[.05]">
+        <Card className="animate-reveal border-signal-bad/35 bg-signal-bad/[.05]">
           <CardContent className="p-5">
             <div className="flex items-start gap-3">
-              <WifiOff size={16} className="mt-0.5 shrink-0 text-ios-red" />
+              <WifiOff size={16} className="mt-0.5 shrink-0 text-signal-bad" />
               <div className="min-w-0 flex-1">
-                <div className="text-[14px] font-semibold text-ios-red">
+                <div className="text-[14px] font-semibold text-signal-bad">
                   {conn?.cause || status?.cause || "Razorpay calls are failing"}
                 </div>
                 <p className="mt-1.5 text-[13px] leading-relaxed">
@@ -321,7 +323,7 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
       )}
 
       {err && (
-        <div className="animate-fade-up rounded-2xl border border-ios-red/30 bg-ios-red/[.05] p-4 text-[13px] text-ios-red">
+        <div className="animate-reveal rounded-[3px] border border-signal-bad/30 bg-signal-bad/[.05] p-4 text-[13px] text-signal-bad">
           {err}
         </div>
       )}
@@ -332,7 +334,7 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
-                <CreditCard size={16} className="text-ios-blue" />
+                <CreditCard size={16} className="text-signal-info" />
                 <CardTitle>1 · Take a real test payment</CardTitle>
               </div>
               <CardDescription>
@@ -351,7 +353,7 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
                 <label className="text-[13px]">
                   <div className="mb-1.5 font-medium text-muted-foreground">Merchant</div>
                   <select value={merchant} onChange={(e) => setMerchant(e.target.value)}
-                    className="h-10 rounded-xl border border-input bg-card px-3 text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40">
+                    className="h-9 rounded-[3px] border border-input bg-background/70 px-3 font-mono text-[12.5px] text-foreground shadow-inset transition-colors focus-visible:border-brass/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brass/30">
                     {ref?.merchants.map((m) => (
                       <option key={m.merchant_id} value={m.merchant_id}>
                         {m.merchant_id}{m.repeat_pattern ? " · repeat-dispute pattern" : ""}
@@ -366,9 +368,9 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
               </div>
 
               {payment && (
-                <div className="mt-4 animate-fade-up rounded-2xl border border-ios-green/25 bg-ios-green/[.05] p-4">
+                <div className="mt-4 animate-reveal rounded-[3px] border border-signal-good/25 bg-signal-good/[.05] p-4">
                   <div className="mb-2 flex flex-wrap items-center gap-2">
-                    <CheckCircle2 size={15} className="text-ios-green" />
+                    <CheckCircle2 size={15} className="text-signal-good" />
                     <span className="font-mono text-[13px] font-medium">{payment.id}</span>
                     <OriginBadge origin="razorpay" />
                   </div>
@@ -391,7 +393,7 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
                   <div className="max-h-40 space-y-1.5 overflow-y-auto">
                     {payments.slice(0, 8).map((p) => (
                       <button key={p.id} onClick={() => usePayment(p)}
-                        className="flex w-full items-center gap-3 rounded-xl border border-black/[.06] bg-secondary/40 px-3 py-2 text-left text-[12.5px] transition-colors hover:bg-secondary">
+                        className="flex w-full items-center gap-3 rounded-[3px] border border-border bg-secondary/40 px-3 py-2 text-left text-[12.5px] transition-colors hover:bg-secondary">
                         <span className="font-mono text-[11.5px]">{p.id}</span>
                         <span className="tnum">{paise(p.amount)}</span>
                         <span className="text-muted-foreground">{p.method}</span>
@@ -408,9 +410,9 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
           <Card className={payment ? "" : "pointer-events-none opacity-45"}>
             <CardHeader>
               <div className="flex items-center gap-2">
-                <Gavel size={16} className="text-ios-orange" />
+                <Gavel size={16} className="text-signal-warn" />
                 <CardTitle>2 · The bank raises a chargeback</CardTitle>
-                <Badge variant="orange">stood in for</Badge>
+                <Badge variant="warn">stood in for</Badge>
               </div>
               <CardDescription>
                 In production this arrives as a <code className="font-mono">payment.dispute.created</code>{" "}
@@ -421,7 +423,7 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
               <label className="block text-[13px]">
                 <div className="mb-1.5 font-medium text-muted-foreground">Network reason code</div>
                 <select value={reason} onChange={(e) => setReason(e.target.value)}
-                  className="h-10 w-full max-w-xl rounded-xl border border-input bg-card px-3 text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40">
+                  className="h-9 w-full max-w-xl rounded-[3px] border border-input bg-background/70 px-3 font-mono text-[12.5px] text-foreground shadow-inset transition-colors focus-visible:border-brass/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brass/30">
                   {ref?.reason_codes.map((r) => (
                     <option key={r.reason_code} value={r.reason_code}>
                       {r.reason_code} · {r.network} — {r.description}
@@ -446,17 +448,17 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
                     return (
                       <button key={t}
                         onClick={() => setEvidence((cur) => on ? cur.filter((x) => x !== t) : [...cur, t])}
-                        className={`rounded-full border px-3 py-1.5 text-[11.5px] font-medium transition-colors
-                          ${on ? "border-ios-blue/35 bg-ios-blue/10 text-ios-blue"
-                               : req ? "border-ios-red/30 bg-ios-red/[.05] text-ios-red"
-                               : "border-black/[.07] bg-secondary/50 text-muted-foreground hover:bg-secondary"}`}>
+                        className={`rounded-[2px] border px-2.5 py-1.5 font-mono text-[10.5px] uppercase tracking-[.09em] transition-colors
+                          ${on ? "border-signal-info/40 bg-signal-info/10 text-signal-info"
+                               : req ? "border-signal-bad/30 bg-signal-bad/[.05] text-signal-bad"
+                               : "border-border bg-secondary/50 text-muted-foreground hover:bg-secondary"}`}>
                         {t}{req && !on ? " · required" : ""}
                       </button>
                     );
                   })}
                 </div>
                 {missing.length > 0 && (
-                  <p className="mt-2 text-[12px] text-ios-red">
+                  <p className="mt-2 text-[12px] text-signal-bad">
                     Missing {missing.join(", ")} — the pipeline will mark this{" "}
                     <span className="font-mono">evidence_incomplete_for_reason_code</span>. Leave it
                     that way on purpose to show the deterministic guard firing.
@@ -477,7 +479,7 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
               </Button>
 
               {dispute && (
-                <div className="animate-fade-up rounded-2xl border border-ios-orange/25 bg-ios-orange/[.05] p-4">
+                <div className="animate-reveal rounded-[3px] border border-signal-warn/25 bg-signal-warn/[.05] p-4">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-mono text-[13px] font-medium">{dispute.dispute_id}</span>
                     <OriginBadge origin={dispute.origin} />
@@ -493,7 +495,7 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
           <Card className={dispute ? "" : "pointer-events-none opacity-45"}>
             <CardHeader>
               <div className="flex items-center gap-2">
-                <Sparkles size={16} className="text-ios-purple" />
+                <Sparkles size={16} className="text-signal-alt" />
                 <CardTitle>3 · AEDI decides</CardTitle>
               </div>
               <CardDescription>
@@ -510,10 +512,10 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
                 <div className="mt-4 space-y-3">
                   <div className="space-y-1.5">
                     {decision.trace.map((t, i) => (
-                      <div key={i} className="animate-slide-in flex gap-3 rounded-xl border border-black/[.05] bg-secondary/40 px-3.5 py-2.5"
+                      <div key={i} className="animate-reveal-x flex gap-3 rounded-[3px] border border-border bg-secondary/40 px-3.5 py-2.5"
                         style={{ animationDelay: `${i * 70}ms`, animationFillMode: "backwards" }}>
-                        <Badge variant={t.kind === "deterministic" ? "blue" : t.kind === "model" ? "purple"
-                          : t.kind === "blocked" ? "orange" : "outline"} className="h-fit shrink-0">
+                        <Badge variant={t.kind === "deterministic" ? "info" : t.kind === "model" ? "alt"
+                          : t.kind === "blocked" ? "warn" : "outline"} className="h-fit shrink-0">
                           {t.kind}
                         </Badge>
                         <div className="min-w-0">
@@ -524,30 +526,30 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
                     ))}
                   </div>
 
-                  <div className={`animate-fade-up rounded-2xl border p-5
-                    ${decision.result.decision === "contest" ? "border-ios-green/30 bg-ios-green/[.05]"
-                      : decision.result.decision === "accept_liability" ? "border-ios-orange/30 bg-ios-orange/[.05]"
-                      : "border-ios-blue/30 bg-ios-blue/[.05]"}`}>
+                  <div className={`animate-reveal rounded-[3px] border p-5
+                    ${decision.result.decision === "contest" ? "border-signal-good/30 bg-signal-good/[.05]"
+                      : decision.result.decision === "accept_liability" ? "border-signal-warn/30 bg-signal-warn/[.05]"
+                      : "border-signal-info/30 bg-signal-info/[.05]"}`}>
                     <div className="mb-3 flex flex-wrap items-center gap-2">
                       <span className="text-[19px] font-semibold">{nice(decision.result.decision)}</span>
                       {decision.result.confidence != null && (
                         <Badge variant="outline">confidence {decision.result.confidence}</Badge>
                       )}
-                      {decision.result.risk_flags.map((f) => <Badge key={f} variant="red">{f}</Badge>)}
+                      {decision.result.risk_flags.map((f) => <Badge key={f} variant="bad">{f}</Badge>)}
                     </div>
                     <p className="text-[13px] leading-relaxed">{decision.result.reason}</p>
                   </div>
 
                   {/* 4 — the loop closing */}
-                  <div className="rounded-2xl border border-black/[.07] bg-secondary/40 p-4">
+                  <div className="rounded-[3px] border border-border bg-secondary/40 p-4">
                     <div className="mb-2 flex flex-wrap items-center gap-2 text-[13px] font-medium">
                       <Gavel size={14} /> 4 · Response to Razorpay
                       {decision.actionable
-                        ? <Badge variant="green">would be issued</Badge>
-                        : <Badge variant="orange">not issued — local chargeback</Badge>}
+                        ? <Badge variant="good">would be issued</Badge>
+                        : <Badge variant="warn">not issued — local chargeback</Badge>}
                     </div>
                     {decision.razorpay_request.path ? (
-                      <pre className="overflow-x-auto rounded-xl bg-[#1c1c1e] p-4 font-mono text-[11.5px] leading-relaxed text-[#e5e5ea]">
+                      <pre className="overflow-x-auto rounded-[3px] border border-border bg-background/70 p-4 font-mono text-[11.5px] leading-relaxed text-foreground/85">
 {`${decision.razorpay_request.method} ${decision.razorpay_request.path}
 ${JSON.stringify(decision.razorpay_request.body ?? {}, null, 2)}`}
                       </pre>
@@ -577,8 +579,8 @@ ${JSON.stringify(decision.razorpay_request.body ?? {}, null, 2)}`}
             <CardHeader>
               <div className="flex items-center gap-2">
                 <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-ios-green opacity-70" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-ios-green" />
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-signal-good opacity-70" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-signal-good" />
                 </span>
                 <CardTitle>Live activity</CardTitle>
               </div>
@@ -592,9 +594,9 @@ ${JSON.stringify(decision.razorpay_request.body ?? {}, null, 2)}`}
               )}
               <div className="space-y-1.5">
                 {[...events].reverse().map((e) => (
-                  <div key={e.id} className="animate-slide-in rounded-xl border border-black/[.05] bg-secondary/40 px-3 py-2">
+                  <div key={e.id} className="animate-reveal-x rounded-[3px] border border-border bg-secondary/40 px-3 py-2">
                     <div className="mb-0.5 flex items-center gap-2">
-                      <Badge variant={e.origin === "razorpay" ? "green" : e.origin === "aedi" ? "purple" : "orange"}>
+                      <Badge variant={e.origin === "razorpay" ? "good" : e.origin === "aedi" ? "alt" : "warn"}>
                         {e.kind}
                       </Badge>
                       <span className="ml-auto font-mono text-[10.5px] text-muted-foreground">{clock(e.at)}</span>

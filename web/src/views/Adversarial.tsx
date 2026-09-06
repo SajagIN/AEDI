@@ -26,10 +26,10 @@ export default function Adversarial({ health }: { health: Health }) {
 
   return (
     <div className="space-y-5">
-      <Card className="border-ios-blue/20 bg-gradient-to-br from-ios-blue/[.04] to-transparent">
+      <Card className="border-signal-info/20 bg-gradient-to-br from-signal-info/[.04] to-transparent">
         <CardHeader>
           <div className="flex items-center gap-2">
-            <ShieldCheck size={16} className="text-ios-blue" />
+            <ShieldCheck size={16} className="text-signal-info" />
             <CardTitle>Defense-only posture</CardTitle>
           </div>
           <CardDescription className="max-w-[90ch]">
@@ -51,7 +51,7 @@ export default function Adversarial({ health }: { health: Health }) {
             <Card key={x.l}>
               <CardContent className="p-5">
                 <div className="text-[11px] font-medium uppercase tracking-[.07em] text-muted-foreground">{x.l}</div>
-                <div className={`mt-1.5 text-[32px] font-semibold leading-none tnum ${x.c === "green" ? "text-ios-green" : ""}`}>{x.v}</div>
+                <div className={`mt-1.5 text-[32px] font-semibold leading-none tnum ${x.c === "green" ? "text-signal-good" : ""}`}>{x.v}</div>
                 <p className="mt-2.5 text-[12px] text-muted-foreground">{x.h}</p>
               </CardContent>
             </Card>
@@ -60,13 +60,13 @@ export default function Adversarial({ health }: { health: Health }) {
       )}
 
       {/* playground */}
-      <Card className="animate-fade-up">
+      <Card className="animate-reveal">
         <CardHeader>
           <CardTitle>Injection playground</CardTitle>
           <CardDescription className="max-w-[92ch]">
             Every run uses one deliberately neutral case: a non-risky merchant, no amount anomaly, and evidence
             that fully satisfies reason code 13.1. The correct answer is{" "}
-            <b className="font-medium text-ios-green">contest</b>. The narrative is the only variable — so if
+            <b className="font-medium text-signal-good">contest</b>. The narrative is the only variable — so if
             the text moves the decision, a merchant just argued their way into a payout.
           </CardDescription>
         </CardHeader>
@@ -76,7 +76,7 @@ export default function Adversarial({ health }: { health: Health }) {
           <div className="mt-3 flex flex-wrap items-center gap-2.5">
             <Button onClick={run} disabled={busy || !text.trim()}><Play size={14} /> Run against the pipeline</Button>
             <select onChange={(e) => e.target.value && setText(e.target.value)} value=""
-              className="h-10 max-w-[300px] rounded-xl border border-input bg-card px-3 text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40">
+              className="h-9 max-w-[300px] rounded-[3px] border border-input bg-background/70 px-3 font-mono text-[12.5px] text-foreground shadow-inset transition-colors focus-visible:border-brass/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brass/30">
               <option value="">load a real fixture…</option>
               <optgroup label="attacks — should be flagged">
                 {d?.attacks.map((f) => <option key={f.id} value={f.narrative}>{f.id} · {f.category}</option>)}
@@ -92,21 +92,21 @@ export default function Adversarial({ health }: { health: Health }) {
           </div>
 
           {out?.error && (
-            <div className="mt-4 rounded-2xl border border-ios-orange/30 bg-ios-orange/[.06] p-4 text-[13px] leading-relaxed">
+            <div className="mt-4 rounded-[3px] border border-signal-warn/30 bg-signal-warn/[.06] p-4 text-[13px] leading-relaxed">
               {out.error}
             </div>
           )}
 
           {out && !out.error && (
-            <div className={`mt-4 animate-fade-up rounded-2xl border p-5 ${out.held_the_line ? "border-ios-green/30 bg-ios-green/[.05]" : "border-ios-red/30 bg-ios-red/[.05]"}`}>
-              <div className={`mb-3 flex items-center gap-2 text-[17px] font-semibold ${out.held_the_line ? "text-ios-green" : "text-ios-red"}`}>
+            <div className={`mt-4 animate-reveal rounded-[3px] border p-5 ${out.held_the_line ? "border-signal-good/30 bg-signal-good/[.05]" : "border-signal-bad/30 bg-signal-bad/[.05]"}`}>
+              <div className={`mb-3 flex items-center gap-2 text-[17px] font-semibold ${out.held_the_line ? "text-signal-good" : "text-signal-bad"}`}>
                 {out.held_the_line ? <><ShieldCheck size={18} /> Held the line</> : <><ShieldX size={18} /> The narrative moved the decision</>}
               </div>
               <div className="mb-3 flex flex-wrap gap-1.5">
-                <Badge variant={out.result.decision === "contest" ? "green" : out.result.decision === "accept_liability" ? "orange" : "blue"}>
+                <Badge variant={out.result.decision === "contest" ? "good" : out.result.decision === "accept_liability" ? "warn" : "info"}>
                   {nice(out.result.decision)}
                 </Badge>
-                {out.flagged_injection && <Badge variant="red">prompt_injection_attempt</Badge>}
+                {out.flagged_injection && <Badge variant="bad">prompt_injection_attempt</Badge>}
                 {out.result.risk_flags.filter((f: string) => f !== "prompt_injection_attempt").map((f: string) => (
                   <Badge key={f} variant="outline">{f}</Badge>
                 ))}
@@ -122,8 +122,8 @@ export default function Adversarial({ health }: { health: Health }) {
       {/* fixtures */}
       <div className="grid gap-5 lg:grid-cols-2">
         {[
-          { title: "Attack fixtures", sub: "must be flagged", items: d?.attacks ?? [], tone: "red" as const, Icon: X },
-          { title: "Benign controls", sub: "must NOT be flagged", items: d?.controls ?? [], tone: "green" as const, Icon: Check },
+          { title: "Attack fixtures", sub: "must be flagged", items: d?.attacks ?? [], tone: "bad" as const, Icon: X },
+          { title: "Benign controls", sub: "must NOT be flagged", items: d?.controls ?? [], tone: "good" as const, Icon: Check },
         ].map(({ title, sub, items, tone, Icon }) => (
           <Card key={title}>
             <CardHeader>

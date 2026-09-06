@@ -1,13 +1,16 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+/* Form fields are recessed, like boxes ruled into a paper form. */
 const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
   ({ className, type, ...props }, ref) => (
     <input type={type} ref={ref}
       className={cn(
-        "flex h-10 w-full rounded-xl border border-input bg-card px-3.5 py-2 text-sm shadow-[inset_0_1px_2px_rgba(0,0,0,.03)] transition-colors placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:border-ios-blue disabled:opacity-50",
-        className
-      )} {...props} />
+        "flex h-9 w-full rounded-[3px] border border-input bg-background/70 px-3 font-mono text-[13px] shadow-inset transition-colors",
+        "placeholder:text-muted-foreground/60 focus-visible:border-brass/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brass/30",
+        "disabled:cursor-not-allowed disabled:opacity-50",
+        className)}
+      {...props} />
   )
 );
 Input.displayName = "Input";
