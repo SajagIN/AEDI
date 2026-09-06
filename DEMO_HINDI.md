@@ -12,7 +12,7 @@ English version: `DEMO.md`.
 Ye 5 minute lagta hai. Skip mat karna.
 
 ```bash
-python -m pytest tests/ -q        # 159 passed aana chahiye
+python -m pytest tests/ -q        # 184 passed aana chahiye
 python app/server.py              # console chalu, http://127.0.0.1:8000
 ```
 

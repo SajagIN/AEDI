@@ -9,7 +9,7 @@
 
   ![Posture](https://img.shields.io/badge/POSTURE-DEFENSE--ONLY-2f6fed?style=for-the-badge)
 
-  ![Tests](https://img.shields.io/badge/TESTS-159_PASSING-2ea44f?style=for-the-badge)
+  ![Tests](https://img.shields.io/badge/TESTS-184_PASSING-2ea44f?style=for-the-badge)
   ![Adversarial defense](https://img.shields.io/badge/ADVERSARIAL_DEFENSE-100%25-2ea44f?style=for-the-badge)
   ![False positives](https://img.shields.io/badge/FALSE_POSITIVES-ZERO-2ea44f?style=for-the-badge)
 

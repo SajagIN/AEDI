@@ -108,3 +108,155 @@ def test_garbage_env_var_is_ignored_rather_than_crashing(monkeypatch):
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     assert mod.output_token_budget(3800) == 3800
+
+
+def _load_fresh(alias="aedi_main_reload"):
+    spec = importlib.util.spec_from_file_location(alias, REPO_ROOT / "code" / "main.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _DummyPool():
+    """A KeyPool that needs no env keys, so mark_dead() can be observed."""
+    import types
+    pool = types.SimpleNamespace(_dead_until={}, dead=[])
+    pool.mark_dead = lambda name, secs: (pool._dead_until.__setitem__(name, secs),
+                                         pool.dead.append(name))
+    return pool
+
+
+# ── the repeat-OTPM hot loop ──────────────────────────────────────────────
+#
+# Observed in a real run: the ceiling was lowered to the account's limit of
+# 1000, and every later OTPM rejection still returned a 0-second wait. Those
+# rejections are a different failure — the per-minute output budget is spent,
+# not the request oversized — so retrying instantly burned all three attempts
+# in about a second and landed on the fallback row.
+
+OTPM_1000 = (
+    "Error code: 429 - {'error': {'message': \"Request too large for model "
+    "`qwen/qwen3.6-27b` in organization `org_x` service tier `on_demand` on output "
+    "tokens per minute (OTPM): Limit 1000, Requested 1463. The request's expected "
+    "output tokens exceed the enforced limit; reduce max_tokens (or the request's "
+    "expected output) and try again.\", 'type': 'tokens', 'code': 'rate_limit_exceeded'}}"
+)
+
+
+def test_first_otpm_rejection_resizes_and_retries_immediately(main):
+    pool = _DummyPool()
+    assert main._handle_error(pool, "GROQ_API_KEY", OTPM_1000) == 0
+    assert main._OUTPUT_TOKEN_CEILING == 1000
+
+
+def test_second_identical_rejection_waits_instead_of_spinning(main):
+    """The regression. Ceiling is already 1000 and cannot go lower, so a zero
+    wait would retry an identical request that cannot succeed."""
+    pool = _DummyPool()
+    main._handle_error(pool, "GROQ_API_KEY", OTPM_1000)      # discovery
+    wait = main._handle_error(pool, "GROQ_API_KEY", OTPM_1000)  # budget spent
+
+    assert wait > 0, "a repeat OTPM rejection must back off, not hot-loop"
+    assert wait >= 30, "OTPM refills on a minute boundary — a token wait is pointless"
+
+
+def test_repeat_rejection_still_does_not_kill_the_key(main):
+    pool = _DummyPool()
+    main._handle_error(pool, "GROQ_API_KEY", OTPM_1000)
+    main._handle_error(pool, "GROQ_API_KEY", OTPM_1000)
+    assert pool.dead == [], "OTPM is an account-wide budget, not a bad key"
+
+
+def test_repeat_rejection_honours_an_explicit_retry_hint(main):
+    pool = _DummyPool()
+    main._handle_error(pool, "GROQ_API_KEY", OTPM_1000)
+    hinted = OTPM_1000.replace("and try again.", "and try again in 12.5s.")
+    assert main._handle_error(pool, "GROQ_API_KEY", hinted) == 12.5
+
+
+def test_note_returns_false_when_the_ceiling_cannot_move(main):
+    assert main.note_output_token_limit(OTPM_1000) is True
+    assert main.note_output_token_limit(OTPM_1000) is False
+
+
+def test_is_output_token_limit_recognises_it_either_way(main):
+    assert main.is_output_token_limit(OTPM_1000) is True
+    main.note_output_token_limit(OTPM_1000)
+    assert main.is_output_token_limit(OTPM_1000) is True
+    assert main.is_output_token_limit("429 try again in 3s") is False
+
+
+def test_a_pinned_ceiling_still_backs_off_rather_than_spinning(main, monkeypatch):
+    """With AEDI_MAX_OUTPUT_TOKENS already at the limit, the very first
+    rejection cannot resize anything — it must wait immediately."""
+    monkeypatch.setenv("AEDI_MAX_OUTPUT_TOKENS", "1000")
+    mod = _load_fresh()
+    assert mod._OUTPUT_TOKEN_CEILING == 1000
+    assert mod._handle_error(_DummyPool(), "GROQ_API_KEY", OTPM_1000) >= 30
+
+
+def test_model_is_overridable_without_editing_code(monkeypatch):
+    monkeypatch.setenv("AEDI_MODEL", "llama-3.3-70b-versatile")
+    assert _load_fresh().MODEL == "llama-3.3-70b-versatile"
+
+
+def test_model_falls_back_to_the_default_when_unset(monkeypatch):
+    monkeypatch.delenv("AEDI_MODEL", raising=False)
+    assert _load_fresh().MODEL == "qwen/qwen3.6-27b"
+
+
+def test_blank_model_env_does_not_produce_an_empty_model(monkeypatch):
+    monkeypatch.setenv("AEDI_MODEL", "   ")
+    assert _load_fresh().MODEL == "qwen/qwen3.6-27b"
+
+
+# ── the interactive wait cap ──────────────────────────────────────────────
+
+def test_analyze_case_refuses_a_wait_longer_than_the_caller_allows(main, monkeypatch):
+    """A 429 can ask for a multi-minute wait, and the OTPM-exhausted path asks
+    for a minute. Correct for the batch runner; it must not park a browser
+    request for that long."""
+    slept = []
+    monkeypatch.setattr(main.time, "sleep", lambda s: slept.append(s))
+    monkeypatch.setattr(main, "build_messages", lambda row, ctx: [])
+
+    def slow_limit(*a, **k):
+        raise main.LLMCallError(
+            Exception("Error code: 429 - rate_limit_exceeded. Please try again in 300s."),
+            "GROQ_API_KEY")
+
+    monkeypatch.setattr(main, "_run_agent_turn", slow_limit)
+
+    result = main.analyze_case(_DummyPool(), None, {"case_id": "x"}, {}, max_wait=20)
+    assert result["decision"] == "manual_review", "must degrade to the safe fallback"
+    assert not slept, "it must give up rather than sleep past the caller's budget"
+
+
+def test_analyze_case_without_a_cap_keeps_the_batch_behaviour(main, monkeypatch):
+    slept = []
+    monkeypatch.setattr(main.time, "sleep", lambda s: slept.append(s))
+    monkeypatch.setattr(main, "build_messages", lambda row, ctx: [])
+
+    def slow_limit(*a, **k):
+        raise main.LLMCallError(
+            Exception("Error code: 429 - rate_limit_exceeded. Please try again in 300s."),
+            "GROQ_API_KEY")
+
+    monkeypatch.setattr(main, "_run_agent_turn", slow_limit)
+    main.analyze_case(_DummyPool(), None, {"case_id": "x"}, {})
+    assert slept == [300, 300], "the batch runner should still wait out a rate limit"
+
+
+def test_a_wait_within_budget_is_still_honoured(main, monkeypatch):
+    slept = []
+    monkeypatch.setattr(main.time, "sleep", lambda s: slept.append(s))
+    monkeypatch.setattr(main, "build_messages", lambda row, ctx: [])
+
+    def quick_limit(*a, **k):
+        raise main.LLMCallError(
+            Exception("Error code: 429 - rate_limit_exceeded. Please try again in 3s."),
+            "GROQ_API_KEY")
+
+    monkeypatch.setattr(main, "_run_agent_turn", quick_limit)
+    main.analyze_case(_DummyPool(), None, {"case_id": "x"}, {}, max_wait=20)
+    assert slept == [3, 3], "a short wait is fine and should not be skipped"

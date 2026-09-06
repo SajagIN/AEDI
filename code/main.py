@@ -47,7 +47,9 @@ import risk_signals
 load_dotenv()
 
 REPO_ROOT = Path(__file__).parent.parent
-MODEL = "qwen/qwen3.6-27b"
+# Overridable so a low free-tier output-per-minute ceiling can be worked
+# around without editing code: AEDI_MODEL=llama-3.3-70b-versatile, etc.
+MODEL = os.environ.get("AEDI_MODEL", "").strip() or "qwen/qwen3.6-27b"
 
 # ── Allowed value sets ────────────────────────────────────────────────────
 # `manual_review` is an abstention, not a class with its own precision/recall
@@ -464,9 +466,15 @@ def output_token_budget(requested: int) -> int:
 def note_output_token_limit(err: str) -> bool:
     """Detect the OTPM 'request too large' rejection and lower the ceiling.
 
-    Returns True if this error was that rejection — in which case the caller
-    should retry immediately rather than sleeping, because the next request
-    will be a genuinely different (smaller) one.
+    Returns True only if the ceiling actually *moved* — i.e. if retrying
+    immediately can plausibly succeed because the next request will be
+    genuinely smaller.
+
+    Returning True whenever the error merely *looked* like OTPM was a bug: once
+    the ceiling has already been lowered to the account's limit, a further OTPM
+    rejection means something different — the per-minute output budget is spent,
+    not that the request is oversized. Retrying that with zero wait is a hot
+    loop that burns every attempt in a few seconds and lands on the fallback row.
     """
     global _OUTPUT_TOKEN_CEILING
     m = _OTPM_RE.search(err)
@@ -475,12 +483,24 @@ def note_output_token_limit(err: str) -> bool:
     limit = int(m.group(1))
     new = limit if _OUTPUT_TOKEN_CEILING is None else min(_OUTPUT_TOKEN_CEILING, limit)
     new = max(MIN_USABLE_OUTPUT_TOKENS, new)
-    if new != _OUTPUT_TOKEN_CEILING:
-        _OUTPUT_TOKEN_CEILING = new
-        print(f"  OTPM ceiling detected: capping output at {new} tokens/request for the rest of "
-              f"this run (export AEDI_MAX_OUTPUT_TOKENS={new} to skip this discovery next time).",
-              file=sys.stderr)
+    if new == _OUTPUT_TOKEN_CEILING:
+        return False
+    _OUTPUT_TOKEN_CEILING = new
+    print(f"  OTPM ceiling detected: capping output at {new} tokens/request for the rest of "
+          f"this run (export AEDI_MAX_OUTPUT_TOKENS={new} to skip this discovery next time).",
+          file=sys.stderr)
+    if new < CLASSIFY_MAX_TOKENS:
+        print(f"  Note: the forced classification round normally asks for {CLASSIFY_MAX_TOKENS} "
+              f"output tokens and is now capped at {new}. Long reasons may be truncated, and "
+              f"this account can place roughly one call per minute. For an interactive demo "
+              f"consider a model with a higher free-tier OTPM via AEDI_MODEL, or raise the "
+              f"limit at https://console.groq.com/settings/billing.", file=sys.stderr)
     return True
+
+
+def is_output_token_limit(err: str) -> bool:
+    """True if this is an OTPM rejection, whether or not it changed anything."""
+    return bool(_OTPM_RE.search(err))
 
 
 def _parse_wait_seconds(err: str, default: float) -> float:
@@ -503,6 +523,12 @@ def _handle_error(pool: KeyPool, key_name: str, err: str) -> float:
         # Deterministic rejection, not congestion: the request was too big.
         # It has now been resized, so retry at once instead of sleeping.
         return 0
+    if is_output_token_limit(err):
+        # Same rejection, but the ceiling could not go any lower — so the
+        # request is not the problem. The account's per-minute output budget
+        # is exhausted. That refills on a minute boundary, so wait it out
+        # rather than spinning.
+        return _parse_wait_seconds(err, 60)
     if "429" in err or "rate_limit" in low:
         return _parse_wait_seconds(err, 15)
     return 5
@@ -791,7 +817,8 @@ def _run_agent_turn(pool: KeyPool, cache: ResponseCache, base_messages: list, ct
     raise RuntimeError("agent loop exceeded max_rounds without classify_chargeback")
 
 
-def analyze_case(pool: KeyPool, cache: ResponseCache, row: dict, ctx: dict, retries: int = 3) -> dict:
+def analyze_case(pool: KeyPool, cache: ResponseCache, row: dict, ctx: dict, retries: int = 3,
+                 max_wait: float = None) -> dict:
     """Runs the agent loop for one case with retry-across-keys on failure;
     validates the result has every required field before returning it, and
     degrades to a safe fallback row if all retries are exhausted. retries=3
@@ -823,6 +850,13 @@ def analyze_case(pool: KeyPool, cache: ResponseCache, row: dict, ctx: dict, retr
                 # nothing to mark dead — just back off briefly and retry.
                 key_name = "n/a"
                 wait = 5
+            if max_wait is not None and wait > max_wait:
+                # An interactive caller passes max_wait so a token-per-day
+                # backoff cannot silently park a web request for 15 minutes.
+                print(f"  Error attempt {attempt + 1} on {key_name}: {e}", file=sys.stderr)
+                print(f"  Needed to wait {wait:.0f}s but the caller allows {max_wait:.0f}s — "
+                      f"giving up rather than blocking.", file=sys.stderr)
+                break
             print(f"  Error attempt {attempt + 1} on {key_name} (wait {wait:.0f}s): {e}", file=sys.stderr)
             if attempt < retries - 1:
                 time.sleep(wait)

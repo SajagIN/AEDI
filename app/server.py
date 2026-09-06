@@ -256,7 +256,9 @@ def analyze():
                 _pool = pipeline.KeyPool()
             trace.append({"step": "llm_cache", "kind": "cache",
                           "detail": "request hashed and checked against .cache/llm_responses/ before any network call"})
-            result = pipeline.analyze_case(_pool, _cache, row, ctx)
+            result, agent_error = run_agent_bounded(row, ctx)
+            if agent_error is not None:
+                return jsonify({"error": str(agent_error)}), 504
             trace.append({"step": "_run_agent_turn", "kind": "model",
                           "detail": "bounded loop, max_rounds=2 — round 2 forces tool_choice=classify_chargeback"})
         except SystemExit as e:
@@ -404,7 +406,9 @@ def injection_test():
         if _pool is None:
             _pool = pipeline.KeyPool()
         ctx = pipeline.build_context(_dataset, row)
-        result = pipeline.analyze_case(_pool, _cache, row, ctx)
+        result, agent_error = run_agent_bounded(row, ctx)
+        if agent_error is not None:
+            return jsonify({"error": str(agent_error)}), 504
     except SystemExit as e:
         return jsonify({"error": str(e)}), 400
     except Exception as e:
@@ -449,6 +453,52 @@ def adversarial():
                     "Re-run tests/adversarial_regression/run_suite.py to regenerate results.csv.",
         },
     })
+
+
+# ── bounded live agent calls ──────────────────────────────────────────────
+#
+# analyze_case() retries with backoff, and a token-per-day rejection asks for
+# a 15-minute wait. That is correct for the batch runner and unacceptable for
+# a browser request, which just spins with no feedback. Live calls from the
+# console therefore run on a worker thread with a hard deadline.
+
+LIVE_CALL_DEADLINE_SECONDS = float(os.environ.get("AEDI_LIVE_TIMEOUT", "90"))
+LIVE_CALL_MAX_WAIT_SECONDS = 20.0
+
+
+def run_agent_bounded(row, ctx, deadline=None):
+    """Run the agent with a wall-clock deadline.
+
+    Returns (result, error). On timeout the worker is left running: it cannot
+    be killed safely mid-HTTP-call, and letting it finish means its answer
+    lands in the shared disk cache, so the retry the operator makes is fast.
+    """
+    import threading
+    deadline = deadline or LIVE_CALL_DEADLINE_SECONDS
+    box = {}
+
+    def work():
+        try:
+            box["result"] = pipeline.analyze_case(
+                _pool, _cache, row, ctx, max_wait=LIVE_CALL_MAX_WAIT_SECONDS)
+        except BaseException as e:                      # noqa: BLE001
+            box["error"] = e
+
+    worker = threading.Thread(target=work, daemon=True)
+    worker.start()
+    worker.join(deadline)
+
+    if worker.is_alive():
+        return None, TimeoutError(
+            f"The model did not answer within {deadline:.0f}s. On a free Groq tier this is "
+            f"usually the output-tokens-per-minute limit: the account can place roughly one "
+            f"call a minute, so an interactive run stalls. Check the server log for 'OTPM'. "
+            f"Options: wait a minute and retry (the attempt still running will land in the "
+            f"cache, making the retry fast), set AEDI_MODEL to a model with a higher free-tier "
+            f"limit, or raise the limit at console.groq.com/settings/billing.")
+    if "error" in box:
+        return None, box["error"]
+    return box.get("result"), None
 
 
 # ── Razorpay test-mode bridge ─────────────────────────────────────────────
@@ -731,7 +781,10 @@ def rzp_decide():
         ctx = pipeline.build_context(_dataset, row)
         trace.append({"step": "llm_cache", "kind": "cache",
                       "detail": "request hashed and checked against .cache/llm_responses/ first"})
-        result = pipeline.analyze_case(_pool, _cache, row, ctx)
+        result, agent_error = run_agent_bounded(row, ctx)
+        if agent_error is not None:
+            return jsonify({"error": str(agent_error), "signals": sig,
+                            "deterministic_flags": flags, "trace": trace}), 504
         trace.append({"step": "_run_agent_turn", "kind": "model",
                       "detail": "bounded loop, max_rounds=2 — round 2 forces tool_choice"})
     except SystemExit as e:
