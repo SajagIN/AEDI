@@ -6,6 +6,7 @@ import Overview from "@/views/Overview";
 import CaseExplorer from "@/views/CaseExplorer";
 import Evaluation from "@/views/Evaluation";
 import Adversarial from "@/views/Adversarial";
+import Live from "@/views/Live";
 
 export default function App() {
   const [health, setHealth] = useState<Health | null>(null);
@@ -53,6 +54,7 @@ export default function App() {
             <TabsTrigger value="cases">Case Explorer</TabsTrigger>
             <TabsTrigger value="evaluation">Evaluation</TabsTrigger>
             <TabsTrigger value="adversarial">Adversarial</TabsTrigger>
+            <TabsTrigger value="live">Live · Razorpay</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview"><Overview split={split} /></TabsContent>
@@ -65,6 +67,7 @@ export default function App() {
           <TabsContent value="adversarial">
             {health && <Adversarial health={health} />}
           </TabsContent>
+          <TabsContent value="live"><Live /></TabsContent>
         </Tabs>
       </main>
     </div>

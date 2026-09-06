@@ -55,6 +55,7 @@ NON_SECRET_SHAPES = re.compile(
         | [Tt]rue | [Ff]alse | None
         | [A-Za-z_][A-Za-z0-9_.]*\(.*  # a call: int(...), os.getenv(...)
         | _?[A-Z][A-Z0-9_]*          # another CONSTANT_NAME being aliased
+        | \{[^}]+\}                  # an f-string hole: RAZORPAY_KEY_SECRET={VAR}
     )$""",
     re.VERBOSE,
 )
@@ -66,7 +67,34 @@ ASSIGNMENT_PATTERN = re.compile(
 # Files we deliberately allow to contain placeholder-shaped strings.
 ALLOWED_PLACEHOLDER_FILES = {".env.example"}
 
+# Test scaffolding needs credential-*shaped* constants that are not credentials
+# — a fake Razorpay key the mock server accepts, for instance. Two escape
+# hatches, both narrow and both visible in review:
+#
+#   1. The value carries a conventional fake marker (your…, fake…, example…).
+#      A genuine leaked key will not contain those words.
+#   2. The line carries an explicit `pragma: allowlist-fake` comment.
+#
+# Neither is a blanket file exemption, so a real key sitting next to a fake one
+# is still caught.
+FAKE_MARKERS = re.compile(
+    r"(your[_-]|fake|example|placeholder|dummy|redacted|changeme|do[_-]?not[_-]?use|_here\b|x{4,})",
+    re.IGNORECASE,
+)
+
+ALLOWLIST_PRAGMA = "pragma: allowlist-fake"
+
 SKIP_DIRS = {".git", ".venv", "venv", "__pycache__", ".cache", "node_modules", ".pytest_cache"}
+
+
+def _line_of(text: str, index: int) -> str:
+    start = text.rfind("\n", 0, index) + 1
+    end = text.find("\n", index)
+    return text[start:end if end != -1 else len(text)]
+
+
+def _is_obviously_fake(value: str, line: str) -> bool:
+    return bool(FAKE_MARKERS.search(value)) or ALLOWLIST_PRAGMA in line
 
 
 def get_staged_files() -> list:
@@ -94,6 +122,8 @@ def scan_file(path: Path) -> list:
 
     for name, pattern in PATTERNS:
         for m in pattern.finditer(text):
+            if _is_obviously_fake(m.group(0), _line_of(text, m.start())):
+                continue
             findings.append(f"{path.relative_to(REPO_ROOT)}: possible {name} ({m.group(0)[:12]}...)")
 
     if path.name not in ALLOWED_PLACEHOLDER_FILES:
@@ -103,6 +133,7 @@ def scan_file(path: Path) -> list:
                 value
                 and not PLACEHOLDER_LOOKALIKES.match(value)
                 and not NON_SECRET_SHAPES.match(value)
+                and not _is_obviously_fake(value, _line_of(text, m.start()))
                 and len(value) >= 8
             ):
 

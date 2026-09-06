@@ -28,6 +28,8 @@ Usage:
 import os
 import sys
 import csv
+import json
+import time
 import traceback
 from pathlib import Path
 
@@ -45,6 +47,9 @@ except Exception:
 
 import importlib.util                     # noqa: E402
 import risk_signals                       # noqa: E402
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import razorpay_live                      # noqa: E402
 
 
 def _load(alias: str, path: Path):
@@ -429,6 +434,425 @@ def adversarial():
                     "Re-run tests/adversarial_regression/run_suite.py to regenerate results.csv.",
         },
     })
+
+
+# ── Razorpay test-mode bridge ─────────────────────────────────────────────
+#
+# See app/razorpay_live.py for the honesty boundary this code maintains:
+# payments are real Razorpay objects, chargebacks are locally raised because
+# the Razorpay API has no endpoint to create one, and every object says which
+# it is. Nothing below ever presents a local object as a Razorpay one.
+
+_rzp_events = razorpay_live.EventLog()
+_rzp_disputes = {}        # dispute_id -> normalised dispute (local + real)
+_rzp_decisions = {}       # dispute_id -> last agent result
+_rzp_client_cache = {"client": None, "key_id": None}
+
+
+def rzp_client():
+    """Build (and memoise) a client for the current credentials."""
+    key_id = (os.getenv("RAZORPAY_KEY_ID") or "").strip()
+    if _rzp_client_cache["client"] is not None and _rzp_client_cache["key_id"] == key_id:
+        return _rzp_client_cache["client"]
+    client = razorpay_live.client_from_env()
+    _rzp_client_cache.update(client=client, key_id=key_id)
+    return client
+
+
+def rzp_guard():
+    """Return (client, None) or (None, flask response) — saves repeating this."""
+    cfg = razorpay_live.read_config()
+    if cfg["state"] != "configured":
+        return None, (jsonify({"error": cfg["detail"], "state": cfg["state"]}), 400)
+    try:
+        return rzp_client(), None
+    except razorpay_live.RazorpayError as e:
+        return None, (jsonify(e.as_dict()), 400)
+
+
+@app.get("/api/rzp/status")
+def rzp_status():
+    """Configuration state, plus — if asked — an actual round trip.
+
+    `?probe=1` costs a network call, so the UI only does it on demand rather
+    than on every poll.
+    """
+    cfg = razorpay_live.read_config()
+    out = dict(cfg, reachable=None, reach_detail=None, real_disputes=None)
+
+    if cfg["state"] == "configured" and request.args.get("probe") == "1":
+        try:
+            client = rzp_client()
+            client.ping()
+            out["reachable"] = True
+            out["reach_detail"] = "Credentials accepted by Razorpay."
+            try:
+                out["real_disputes"] = len(client.fetch_disputes())
+            except razorpay_live.RazorpayError:
+                out["real_disputes"] = None
+        except razorpay_live.RazorpayError as e:
+            out["reachable"] = False
+            out["reach_detail"] = e.message
+    return jsonify(out)
+
+
+@app.get("/api/rzp/reference")
+def rzp_reference():
+    """Everything the live form needs: real merchants, real reason codes,
+    real evidence types. Sourced from the project's reference data so a live
+    case is scored against exactly the same rules as a dataset case."""
+    merchants = [
+        {
+            "merchant_id": m["merchant_id"],
+            "chargeback_rate_90d": m.get("chargeback_rate_90d"),
+            "prior_contest_win_rate": m.get("prior_contest_win_rate"),
+            "history_flags": m.get("history_flags", ""),
+            "repeat_pattern": risk_signals.is_merchant_repeat_pattern(m),
+        }
+        for m in _dataset.merchant_history.values()
+    ]
+    reasons = [
+        {
+            "reason_code": r["reason_code"],
+            "network": r.get("network"),
+            "description": r.get("description"),
+            "required_evidence_types": sorted(risk_signals.required_evidence_types(r)),
+        }
+        for r in _dataset.reason_requirements.values()
+    ]
+    return jsonify({
+        "merchants": sorted(merchants, key=lambda m: m["merchant_id"]),
+        "reason_codes": sorted(reasons, key=lambda r: r["reason_code"]),
+        "evidence_catalog": razorpay_live.EVIDENCE_CATALOG,
+    })
+
+
+@app.post("/api/rzp/order")
+def rzp_order():
+    """Create a genuine Razorpay test-mode order.
+
+    The order id that comes back is real and appears in the merchant's
+    Razorpay test dashboard. The browser then hands it to Checkout.js, and
+    the resulting payment is a real `pay_…` object.
+    """
+    client, err = rzp_guard()
+    if err:
+        return err
+    body = request.get_json(force=True) or {}
+    try:
+        rupees = float(body.get("amount_inr") or 0)
+    except (TypeError, ValueError):
+        return jsonify({"error": "amount_inr must be a number"}), 400
+    if rupees < 1:
+        return jsonify({"error": "amount must be at least INR 1.00"}), 400
+
+    try:
+        order = client.create_order(
+            int(round(rupees * 100)),
+            receipt=f"aedi_{int(time.time())}",
+            notes={"source": "aedi-console", "merchant_id": body.get("merchant_id", "")},
+        )
+    except razorpay_live.RazorpayError as e:
+        return jsonify(e.as_dict()), 502
+
+    _rzp_events.add("order.created",
+                    f"Order {order['id']} created for INR {rupees:,.2f}",
+                    origin="razorpay", order_id=order["id"])
+    return jsonify({"order": order, "key_id": os.getenv("RAZORPAY_KEY_ID", "").strip()})
+
+
+@app.get("/api/rzp/payments")
+def rzp_payments():
+    client, err = rzp_guard()
+    if err:
+        return err
+    try:
+        items = client.fetch_payments(count=int(request.args.get("count", 20)))
+    except razorpay_live.RazorpayError as e:
+        return jsonify(e.as_dict()), 502
+    return jsonify({"payments": items, "origin": "razorpay"})
+
+
+@app.post("/api/rzp/confirm")
+def rzp_confirm():
+    """Called by the browser after Checkout.js reports success.
+
+    We re-fetch the payment from Razorpay rather than trusting the browser's
+    word for it — the client-side handler is not an authority on whether
+    money moved.
+    """
+    client, err = rzp_guard()
+    if err:
+        return err
+    payment_id = (request.get_json(force=True) or {}).get("payment_id", "")
+    if not razorpay_live.looks_like_payment_id(payment_id):
+        return jsonify({"error": f"'{payment_id}' is not a Razorpay payment id"}), 400
+    try:
+        payment = client.fetch_payment(payment_id)
+    except razorpay_live.RazorpayError as e:
+        return jsonify(e.as_dict()), 502
+
+    _rzp_events.add("payment.captured",
+                    f"Payment {payment['id']} · INR {int(payment.get('amount', 0)) / 100:,.2f} "
+                    f"via {payment.get('method', '?')} · verified server-side",
+                    origin="razorpay", payment_id=payment["id"])
+    return jsonify({"payment": payment, "origin": "razorpay"})
+
+
+@app.get("/api/rzp/disputes")
+def rzp_disputes():
+    """Real disputes first, then anything raised locally in this session."""
+    out = []
+    client, err = rzp_guard()
+    if not err:
+        try:
+            for d in client.fetch_disputes():
+                normalised = razorpay_live.dispute_from_razorpay(d)
+                _rzp_disputes.setdefault(normalised["dispute_id"], normalised)
+                out.append(normalised)
+        except razorpay_live.RazorpayError:
+            pass  # a live-fetch failure must not hide locally raised disputes
+    seen = {d["dispute_id"] for d in out}
+    out.extend(d for k, d in _rzp_disputes.items() if k not in seen)
+    return jsonify({
+        "disputes": out,
+        "decisions": _rzp_decisions,
+        "note": "Razorpay has no dispute-create API — disputes are raised by the issuing "
+                "bank. Any dispute marked origin=local was raised in this console against "
+                "a real Razorpay payment.",
+    })
+
+
+@app.post("/api/rzp/chargeback")
+def rzp_chargeback():
+    """Raise a chargeback against a real Razorpay payment.
+
+    Explicitly a local object. It is attached to a genuine payment id and
+    scored by the real pipeline, but Razorpay knows nothing about it.
+    """
+    client, err = rzp_guard()
+    if err:
+        return err
+    body = request.get_json(force=True) or {}
+    payment_id = body.get("payment_id", "")
+    reason_code = body.get("reason_code", "13.1")
+    merchant_id = body.get("merchant_id", "")
+    evidence_types = body.get("evidence_types") or []
+    narrative = (body.get("narrative") or "").strip()
+
+    if not razorpay_live.looks_like_payment_id(payment_id):
+        return jsonify({"error": f"'{payment_id}' is not a Razorpay payment id"}), 400
+    if reason_code not in _dataset.reason_requirements:
+        return jsonify({"error": f"unknown reason code '{reason_code}'"}), 400
+    if merchant_id not in _dataset.merchant_history:
+        return jsonify({"error": f"unknown merchant '{merchant_id}'"}), 400
+
+    try:
+        payment = client.fetch_payment(payment_id)
+    except razorpay_live.RazorpayError as e:
+        return jsonify(e.as_dict()), 502
+
+    dispute = razorpay_live.local_dispute(payment, reason_code=reason_code)
+    row = razorpay_live.payment_to_case(
+        payment, merchant_id=merchant_id, reason_code=reason_code,
+        narrative=narrative, evidence_types=evidence_types,
+    )
+    dispute["case"] = row
+    dispute["network_reason_code"] = reason_code
+    _rzp_disputes[dispute["dispute_id"]] = dispute
+
+    _rzp_events.add("dispute.raised",
+                    f"Chargeback on {payment_id} · reason {reason_code} · "
+                    f"{len(evidence_types)} evidence item(s) attached",
+                    origin="local", dispute_id=dispute["dispute_id"])
+    return jsonify({"dispute": dispute, "signals": signals_for(row)})
+
+
+@app.post("/api/rzp/decide")
+def rzp_decide():
+    """Run the real pipeline over a live chargeback."""
+    global _pool
+    body = request.get_json(force=True) or {}
+    dispute = _rzp_disputes.get(body.get("dispute_id"))
+    if not dispute or "case" not in dispute:
+        return jsonify({"error": "no such chargeback in this session"}), 404
+
+    row = dispute["case"]
+    sig = signals_for(row)
+    flags = risk_flag_list(sig)
+    trace = [
+        {"step": "razorpay.fetch_payment", "kind": "network",
+         "detail": f"payment {dispute['payment_id']} re-fetched from Razorpay — "
+                   f"amount and method come from the gateway, not the browser"},
+        {"step": "build_context", "kind": "deterministic",
+         "detail": f"{len(sig['evidence_items'])} evidence item(s) enumerated as ev_1.."
+                   f"ev_{len(sig['evidence_items'])}; reason {row['reason_code']} requires "
+                   f"{', '.join(sig['required_types']) or 'nothing on file'}"},
+        {"step": "risk_signals", "kind": "deterministic",
+         "detail": f"evidence_sufficiency={sig['evidence_sufficiency']} · "
+                   f"amount_anomaly={sig['amount_anomaly']} · "
+                   f"merchant_repeat_pattern={sig['merchant_repeat_pattern']} — computed in "
+                   f"code from the merchant's real history row"},
+    ]
+
+    if not has_api_key():
+        return jsonify({
+            "error": "Deciding a live chargeback needs a GROQ_API_KEY in .env. The narrative is "
+                     "novel text, so there is no committed prediction to replay and inventing "
+                     "one would be theatre. The deterministic signals below are still real.",
+            "signals": sig, "deterministic_flags": flags, "trace": trace,
+        }), 400
+
+    try:
+        if _pool is None:
+            _pool = pipeline.KeyPool()
+        ctx = pipeline.build_context(_dataset, row)
+        trace.append({"step": "llm_cache", "kind": "cache",
+                      "detail": "request hashed and checked against .cache/llm_responses/ first"})
+        result = pipeline.analyze_case(_pool, _cache, row, ctx)
+        trace.append({"step": "_run_agent_turn", "kind": "model",
+                      "detail": "bounded loop, max_rounds=2 — round 2 forces tool_choice"})
+    except SystemExit as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": f"{type(e).__name__}: {e}"}), 500
+
+    trace.append({"step": "apply_deterministic_overrides", "kind": "deterministic",
+                  "detail": "evidence_sufficiency and mechanical flags pinned to code-computed "
+                            "values regardless of what the model returned"})
+
+    evidence_types = [i["type"] for i in sig["evidence_items"]]
+    payload = razorpay_live.contest_payload(dispute, result, row, evidence_types)
+    decision = result.get("decision")
+    trace.append({
+        "step": "razorpay.respond", "kind": "network" if dispute["actionable"] else "blocked",
+        "detail": (
+            f"PATCH /v1/disputes/{dispute['dispute_id']}/contest"
+            if decision == "contest" else
+            f"POST /v1/disputes/{dispute['dispute_id']}/accept"
+            if decision == "accept_liability" else
+            "no automatic response — routed to a human reviewer"
+        ) + ("" if dispute["actionable"] else
+             "  (not issued: this chargeback is local, so Razorpay has no such dispute)"),
+    })
+
+    out = {
+        "dispute_id": dispute["dispute_id"],
+        "result": result,
+        "deterministic_flags": flags,
+        "signals": sig,
+        "trace": trace,
+        "actionable": dispute["actionable"],
+        "razorpay_request": {
+            "method": "PATCH" if decision == "contest" else "POST" if decision == "accept_liability" else None,
+            "path": (f"/v1/disputes/{dispute['dispute_id']}/contest" if decision == "contest"
+                     else f"/v1/disputes/{dispute['dispute_id']}/accept" if decision == "accept_liability"
+                     else None),
+            "body": payload if decision == "contest" else {} if decision == "accept_liability" else None,
+        },
+    }
+    _rzp_decisions[dispute["dispute_id"]] = {
+        "decision": decision, "confidence": result.get("confidence"),
+        "risk_flags": result.get("risk_flags", []),
+    }
+    _rzp_events.add("agent.decided",
+                    f"{dispute['dispute_id']} → {decision}"
+                    + (f" · flags: {', '.join(result.get('risk_flags', []))}"
+                       if result.get("risk_flags") else ""),
+                    origin="aedi", dispute_id=dispute["dispute_id"], decision=decision)
+    return jsonify(out)
+
+
+@app.post("/api/rzp/submit")
+def rzp_submit():
+    """Send the agent's decision back to Razorpay.
+
+    Only ever issued for a genuine Razorpay dispute. For a local chargeback
+    this refuses and returns the request that would have been sent, which is
+    the honest way to show the loop closing.
+    """
+    client, err = rzp_guard()
+    if err:
+        return err
+    body = request.get_json(force=True) or {}
+    dispute = _rzp_disputes.get(body.get("dispute_id"))
+    if not dispute:
+        return jsonify({"error": "no such dispute in this session"}), 404
+
+    decision = _rzp_decisions.get(dispute["dispute_id"], {}).get("decision")
+    if decision not in ("contest", "accept_liability"):
+        return jsonify({"error": "nothing to submit — the agent routed this to manual review"}), 400
+
+    if not dispute["actionable"]:
+        return jsonify({
+            "submitted": False,
+            "reason": "This chargeback was raised in the console, so there is no dispute on the "
+                      "Razorpay side to respond to. Against a real dispute the console would "
+                      "issue exactly the request shown.",
+        }), 409
+
+    try:
+        if decision == "contest":
+            updated = client.contest_dispute(dispute["dispute_id"],
+                                             body.get("payload") or {"action": "submit"})
+        else:
+            updated = client.accept_dispute(dispute["dispute_id"])
+    except razorpay_live.RazorpayError as e:
+        return jsonify(e.as_dict()), 502
+
+    _rzp_events.add("razorpay.responded",
+                    f"{decision} submitted for {dispute['dispute_id']} → status "
+                    f"{updated.get('status')}",
+                    origin="razorpay", dispute_id=dispute["dispute_id"])
+    return jsonify({"submitted": True, "dispute": updated})
+
+
+@app.get("/api/rzp/events")
+def rzp_events():
+    return jsonify({"events": _rzp_events.since(request.args.get("after", 0))})
+
+
+@app.post("/api/rzp/webhook")
+def rzp_webhook():
+    """Receive real Razorpay webhooks.
+
+    Optional, but it is the one path where a genuine chargeback can reach
+    this console: configure a `payment.dispute.created` webhook in the
+    Razorpay dashboard and the dispute arrives here as a real object.
+    Unsigned or wrongly-signed requests are dropped — a webhook endpoint
+    that trusts its caller is a hole, not a feature.
+    """
+    secret = (os.getenv("RAZORPAY_WEBHOOK_SECRET") or "").strip()
+    raw = request.get_data()
+    signature = request.headers.get("X-Razorpay-Signature", "")
+
+    if not razorpay_live.verify_webhook_signature(raw, signature, secret):
+        return jsonify({"error": "invalid or missing signature"}), 401
+
+    try:
+        event = json.loads(raw.decode("utf-8"))
+    except Exception:
+        return jsonify({"error": "body was not JSON"}), 400
+
+    name = event.get("event", "unknown")
+    entities = event.get("payload", {})
+
+    if name.startswith("payment.dispute."):
+        raw_dispute = entities.get("dispute", {}).get("entity", {})
+        if raw_dispute.get("id"):
+            normalised = razorpay_live.dispute_from_razorpay(raw_dispute)
+            normalised["network_reason_code"] = razorpay_live.PHASE_TO_REASON_CODE.get(
+                normalised.get("phase"), "13.1")
+            _rzp_disputes[normalised["dispute_id"]] = normalised
+            _rzp_events.add("dispute.webhook",
+                            f"Razorpay reported {name} for {normalised['dispute_id']} "
+                            f"(payment {normalised['payment_id']})",
+                            origin="razorpay", dispute_id=normalised["dispute_id"])
+            return jsonify({"ok": True, "dispute_id": normalised["dispute_id"]})
+
+    _rzp_events.add("webhook", f"Razorpay webhook: {name}", origin="razorpay")
+    return jsonify({"ok": True})
 
 
 @app.get("/")

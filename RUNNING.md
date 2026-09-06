@@ -51,14 +51,86 @@ It starts in one of two modes, detected automatically:
 | **REPLAY** | no `GROQ_API_KEY` | Everything except a live model call: every deterministic signal computed on the fly, the full evaluation harness, the committed predictions, the adversarial fixture catalogue. No network access at all. |
 | **LIVE** | `GROQ_API_KEY` in `.env` | The above, plus a **Run live** button that calls the real bounded agent loop for a single case through the disk cache. |
 
-Four tabs:
+Five tabs:
 
 - **Overview** — what the system does, the deterministic-vs-model dividing line, the threat model. The headline numbers are computed live, not hard-coded in the page.
 - **Case Explorer** — the actual demo. Pick a case, see its evidence with pipeline-assigned IDs, the reason code's requirement checklist, the deterministic risk signals, and the untrusted merchant narrative. Hit **Replay committed decision** to watch the pipeline trace step through and land on a decision, with the cited evidence highlighted and compared against ground truth.
 - **Evaluation** — confusion matrix, precision/recall, coverage and the cost model for the agent and both baselines, all computed in-process by `code/evaluation/main.py`.
+- **Live · Razorpay** — the pipeline against a real Razorpay test-mode payment rather than a CSV row. See §2b for exactly which parts are real.
 - **Adversarial** — the 24 attack fixtures and 10 benign controls, with the defence posture statement, plus an **injection playground**: paste any narrative and run it against a deliberately neutral case whose correct answer is `contest`. If your text moves the decision, the defence just failed in front of you. (The playground needs LIVE mode — in REPLAY it refuses rather than fabricating a verdict.)
 
 Change the port with `PORT=9000 python app/server.py`.
+
+---
+
+## 2b. Connecting Razorpay (test mode)
+
+The **Live · Razorpay** tab runs the pipeline against a real payment instead
+of a CSV row. Add test credentials to `.env` and restart:
+
+```bash
+RAZORPAY_KEY_ID=rzp_test_your_key_id_here
+RAZORPAY_KEY_SECRET=your_key_here
+```
+
+Generate them from the Razorpay Dashboard with the Test/Live toggle set to
+**Test** → Settings → API Keys. A key beginning `rzp_live_` is **refused at
+startup**: the console can submit dispute responses, and accepting a dispute
+is irreversible and moves real money.
+
+The tab walks four steps — take a payment, raise a chargeback, let AEDI
+decide, respond to Razorpay — with a live event feed down the side.
+
+### What is real, and what is not
+
+This matters, because a judge will ask.
+
+| Step | Real? |
+|---|---|
+| Order created (`order_…`) | **Real.** A genuine Razorpay object, visible in your test dashboard. |
+| Payment taken via Checkout (`pay_…`) | **Real.** Pay with test card `4111 1111 1111 1111`, any future expiry/CVV, or UPI id `success@razorpay`. Verified server-side by re-fetching from Razorpay — the browser's claim is not trusted. |
+| Merchant history, reason-code rules, evidence requirements | **Real.** The project's own reference data, so a live case is scored by exactly the same rules as a dataset case. |
+| Deterministic signals and the agent's decision | **Real.** The same `risk_signals` and `analyze_case` the batch pipeline uses. |
+| **Chargeback arriving** | **Stood in for.** Razorpay has no dispute-create endpoint — [disputes are raised by the issuing bank](https://razorpay.com/docs/api/disputes/), not the merchant, so no sandbox can manufacture one. Chargebacks raised in the console are labelled `raised in console` and are **never** submitted to Razorpay. |
+| Contest / accept submitted back | **Real, but only for a real dispute.** For a locally-raised one the console shows the exact `PATCH /v1/disputes/:id/contest` body it would send and refuses to pretend otherwise. |
+
+### Getting a genuine dispute to arrive
+
+Set a webhook secret and point a Razorpay webhook at `POST /api/rzp/webhook`:
+
+```bash
+RAZORPAY_WEBHOOK_SECRET=your_key_here
+```
+
+Subscribe to `payment.dispute.created` in the Dashboard. Requests with a
+missing or wrong HMAC-SHA256 signature are dropped. A dispute arriving this
+way is labelled `live from Razorpay`, is actionable, and contest/accept are
+genuinely issued against it.
+
+### Trying it without a Razorpay account
+
+`scripts/razorpay_mock.py` serves the same endpoints locally, pre-seeded with
+payments and one real-looking dispute:
+
+```bash
+python scripts/razorpay_mock.py --with-real-dispute
+```
+
+It prints the three environment variables to export — including the throwaway
+credentials it accepts — so copy that block into a second terminal and start
+the console with them:
+
+```bash
+RAZORPAY_KEY_ID=... RAZORPAY_KEY_SECRET=... RAZORPAY_API_BASE=http://127.0.0.1:9911 \
+python app/server.py
+```
+
+Everything works except the Checkout popup, which is Razorpay's own hosted
+page and needs a real key — use the "reuse a payment already on the account"
+list instead. This is also what the test suite runs against, so the Razorpay
+bridge is covered with no network and no credentials.
+
+---
 
 ### Rebuilding the console UI
 
@@ -158,3 +230,8 @@ chmod +x .git/hooks/pre-commit
 | `429 ... tokens per minute (TPM)` / `Please try again in 12.5s` | An ordinary rate limit. The pipeline already handles it: it parses the retry hint, sleeps, and resends. Nothing to do. |
 | `429 ... output tokens per minute (OTPM)` / `reduce max_tokens` | **Not** a transient limit — resending the identical request can never succeed, because the request's own `max_tokens` exceeds your tier's per-minute output ceiling. The pipeline detects this specific message, reads the advertised `Limit`, permanently lowers its output ceiling for the rest of the run, and retries immediately with no sleep. If you'd rather pin it up front and skip the discovery round-trip, set `AEDI_MAX_OUTPUT_TOKENS=1000` in `.env`. The floor is 256 tokens; below that a response can't fit the required JSON. |
 | The console looks unstyled, or a tab renders blank | `app/static/` is stale or partially deleted. Rebuild it: `cd web && npm install && npm run build`. |
+| The Live tab says "Razorpay not connected" | Add `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` to `.env` and restart. Both are required. |
+| `That is a LIVE Razorpay key (rzp_live_…)` | Deliberate. Generate a key with the Dashboard toggle set to Test. |
+| Live tab loads but "Test connection" fails | The message is Razorpay's own. `Authentication failed` means the key/secret pair is wrong or from the other mode; `could not reach Razorpay` means no network route. |
+| Checkout popup never opens | `checkout.razorpay.com` is blocked, or the key id is a test key while the dashboard is in live mode. Reuse an existing payment from the list instead. |
+| Razorpay webhook returns 401 | `RAZORPAY_WEBHOOK_SECRET` must match the secret set on the webhook in the Dashboard. Unsigned requests are dropped on purpose. |

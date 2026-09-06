@@ -89,3 +89,88 @@ export const num = (v: string | number) => Number(v).toLocaleString("en-IN");
 
 export const decisionTone = (d?: string | null) =>
   d === "contest" ? "green" : d === "accept_liability" ? "orange" : d === "manual_review" ? "blue" : "default";
+
+/* ── Razorpay test-mode bridge ──────────────────────────────────────────
+   Objects carry an `origin`: "razorpay" means fetched from the Razorpay API,
+   "local" means constructed by the console because Razorpay has no
+   dispute-create endpoint. The UI must never render the two identically. */
+
+export type RzpStatus = {
+  state: "unconfigured" | "incomplete" | "refused" | "unknown_key" | "configured";
+  detail: string;
+  key_id_masked: string | null;
+  api_base: string;
+  webhook_secret_set: boolean;
+  reachable: boolean | null;
+  reach_detail: string | null;
+  real_disputes: number | null;
+};
+
+export type RzpMerchant = {
+  merchant_id: string; chargeback_rate_90d: string;
+  prior_contest_win_rate: string; history_flags: string; repeat_pattern: boolean;
+};
+export type RzpReason = {
+  reason_code: string; network: string; description: string; required_evidence_types: string[];
+};
+export type RzpReference = {
+  merchants: RzpMerchant[]; reason_codes: RzpReason[]; evidence_catalog: Record<string, string>;
+};
+
+export type RzpPayment = {
+  id: string; amount: number; currency: string; status: string;
+  method: string; order_id: string; created_at: number; description?: string;
+};
+
+export type RzpDispute = {
+  origin: "razorpay" | "local";
+  dispute_id: string; payment_id: string; amount_paise: number; currency: string;
+  status: string; phase: string; razorpay_reason_code: string;
+  reason_description: string; respond_by: number; created_at: number;
+  actionable: boolean; network_reason_code?: string; case?: Record<string, string>;
+};
+
+export type RzpEvent = {
+  id: number; at: number; kind: string; message: string;
+  origin?: string; decision?: string;
+};
+
+export type RzpDecision = {
+  dispute_id: string;
+  result: AnalyzeResult["result"];
+  deterministic_flags: string[];
+  signals: CaseDetail["signals"];
+  trace: { step: string; kind: string; detail: string }[];
+  actionable: boolean;
+  razorpay_request: { method: string | null; path: string | null; body: any };
+  error?: string;
+};
+
+const post = (url: string, body: unknown) =>
+  j(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+
+export const rzpStatus = (probe = false) =>
+  j(`/api/rzp/status${probe ? "?probe=1" : ""}`) as Promise<RzpStatus>;
+export const rzpReference = () => j("/api/rzp/reference") as Promise<RzpReference>;
+export const rzpPayments = () => j("/api/rzp/payments") as Promise<{ payments: RzpPayment[] }>;
+export const rzpDisputes = () =>
+  j("/api/rzp/disputes") as Promise<{ disputes: RzpDispute[]; decisions: Record<string, any>; note: string }>;
+export const rzpEvents = (after: number) =>
+  j(`/api/rzp/events?after=${after}`) as Promise<{ events: RzpEvent[] }>;
+
+export const rzpOrder = (amount_inr: number, merchant_id: string) =>
+  post("/api/rzp/order", { amount_inr, merchant_id }) as Promise<any>;
+export const rzpConfirm = (payment_id: string) =>
+  post("/api/rzp/confirm", { payment_id }) as Promise<any>;
+export const rzpChargeback = (b: {
+  payment_id: string; merchant_id: string; reason_code: string;
+  evidence_types: string[]; narrative: string;
+}) => post("/api/rzp/chargeback", b) as Promise<any>;
+export const rzpDecide = (dispute_id: string) =>
+  post("/api/rzp/decide", { dispute_id }) as Promise<RzpDecision>;
+export const rzpSubmit = (dispute_id: string, payload?: unknown) =>
+  post("/api/rzp/submit", { dispute_id, payload }) as Promise<any>;
+
+export const paise = (v: number) => inr((v || 0) / 100);
+export const clock = (ts: number) =>
+  new Date(ts * 1000).toLocaleTimeString("en-IN", { hour12: false });

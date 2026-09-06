@@ -137,6 +137,36 @@ Load `inj_04` from the preset dropdown, run it, then load `ctrl_01` and run that
 
 ---
 
+### Beat 5 — a real payment, if you have Razorpay wired up (Live, 45s)
+
+Optional, and only worth doing if you have already run through it once. It is
+the beat that makes the whole thing stop looking like a CSV exercise.
+
+> This is Razorpay test mode, my own account. I'll take a payment right now —
+> test card, ₹1,299, UPI. That's a real `pay_…` object; I can open my Razorpay
+> dashboard and it's there. The console re-fetched it server-side rather than
+> trusting the browser.
+>
+> Now the honest bit. Razorpay has no API to *create* a dispute, because
+> disputes are raised by the issuing bank, not by me. So I can't manufacture a
+> genuine chargeback on stage and I'm not going to pretend to. I'll raise one
+> here — see, it's tagged `raised in console`, and the tab will refuse to submit
+> it to Razorpay. Everything downstream of it is real: real merchant history,
+> real reason-code requirements, real pipeline.
+>
+> Watch — I'll leave out `shipping_carrier_record` deliberately. Reason code
+> 13.1 requires it, so the deterministic layer marks the evidence incomplete
+> before the model is ever consulted. Decision: manual review. And here is the
+> exact `PATCH /v1/disputes/:id/contest` the console *would* send against a real
+> dispute — which is what arrives if you wire up the `payment.dispute.created`
+> webhook.
+
+**Why volunteer the limitation?** Because a payments judge already knows
+disputes come from the bank. If you gloss over it they stop believing the
+metrics too. Saying it first costs you nothing and buys you the rest.
+
+---
+
 ## 4. Questions you will get
 
 **"Isn't this just an LLM wrapper?"**
@@ -181,6 +211,18 @@ Load `inj_04` from the preset dropdown, run it, then load `ctrl_01` and run that
 > threshold that abstains, which is a real mechanism rather than a copy of the
 > answer key. Then re-run held-out on genuinely fresh data.
 
+**"Is the Razorpay integration real, or a mock?"**
+> Both, and the tab says which is which per object. Orders and payments are
+> genuine test-mode API calls — open the Razorpay dashboard and they're there.
+> The chargeback is stood in for, because Razorpay has no dispute-create
+> endpoint; disputes originate at the issuing bank. Anything raised in the
+> console is tagged `raised in console` and the code physically refuses to
+> submit it. If a real dispute arrives by webhook it's tagged
+> `live from Razorpay` and contest/accept are genuinely issued. There's also a
+> local stand-in for the whole Razorpay API in `scripts/razorpay_mock.py`, which
+> is what the 76 Razorpay tests run against — that's how the integration is
+> covered without credentials in CI.
+
 ---
 
 ## 5. What not to do
@@ -194,6 +236,9 @@ Load `inj_04` from the preset dropdown, run it, then load `ctrl_01` and run that
   quoted becomes suspect.
 - **Don't lead with architecture.** Lead with the money and the attack. Get to
   the diagram only if they ask how.
+- **Don't imply the chargeback is real.** Say "Razorpay can't create disputes,
+  so I'm standing this one in" *before* you click. The tab labels it anyway, and
+  being caught being vague about it is far worse than the limitation itself.
 - **Don't say "100% accurate."** Say "zero false positives and zero false
   negatives on the decisions it committed to" — it's precise, it's true, and the
   qualifier is what makes it credible.
@@ -203,7 +248,7 @@ Load `inj_04` from the preset dropdown, run it, then load `ctrl_01` and run that
 ## 6. Pre-demo checklist
 
 ```bash
-python -m pytest tests/ -q                 # 46 passed
+python -m pytest tests/ -q                 # 131 passed
 python app/server.py                       # console up on :8000
 ```
 
@@ -212,3 +257,6 @@ python app/server.py                       # console up on :8000
 - [ ] `cb_0142` located in the Case Explorer
 - [ ] One case from the Disagreements filter picked out in advance
 - [ ] Terminal on a second window with the test suite already run
+- [ ] *If demoing the Live tab:* `RAZORPAY_KEY_ID`/`_SECRET` set to **test**
+      keys, "Test connection" already clicked green, and one test payment
+      already taken so the reuse list isn't empty
