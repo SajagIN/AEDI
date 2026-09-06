@@ -56,7 +56,39 @@ async function renderKpis() {
       <small>decided automatically, not routed to a human</small></div>
     <div class="kpi warn"><span>Bypassed reviews</span><b>${a.cost.n_bypassed_review}</b>
       <small>the disclosed gap — risky cases auto-decided anyway</small></div>`;
+  IMPACT = m; renderImpact();
 }
+
+/* Impact projector. Every rate below is measured on the split currently
+   selected; only the volume and minutes-per-review are the viewer's input. */
+let IMPACT = null;
+function renderImpact() {
+  if (!IMPACT) return;
+  const agent = IMPACT.blocks[0], allrev = IMPACT.blocks[2];
+  const vol = Math.max(1, +$('#vol').value || 0);
+  const mins = Math.max(1, +$('#mins').value || 0);
+
+  const perCaseAgent = agent.cost.cost_per_100_inr / 100;
+  const perCaseToday = allrev.cost.cost_per_100_inr / 100;   // review every dispute
+  const saveMonth = (perCaseToday - perCaseAgent) * vol;
+  const reviewed = Math.round(vol * (1 - agent.coverage));
+  const hoursSaved = Math.round((vol - reviewed) * mins / 60);
+  const exposure = agent.cost.bypassed_review_exposure_per_100_inr / 100 * vol;
+
+  $('#impact-out').innerHTML = `
+    <div class="iout"><span>Auto-decided</span><b>${(vol - reviewed).toLocaleString('en-IN')}</b></div>
+    <div class="iout"><span>Still sent to a human</span><b>${reviewed.toLocaleString('en-IN')}</b></div>
+    <div class="iout save"><span>Analyst hours freed / month</span><b>${hoursSaved.toLocaleString('en-IN')}</b></div>
+    <div class="iout save"><span>Review cost avoided / month</span><b>${inr(saveMonth)}</b></div>
+    <div class="iout risk"><span>Unpriced risk carried / month</span><b>${inr(exposure)}</b></div>`;
+
+  $('#impact-note').innerHTML =
+    `Measured on <b>${IMPACT.split}</b> (n=${agent.n}): coverage <b>${pct(agent.coverage)}</b>, ` +
+    `<b>${inr(perCaseAgent)}</b>/dispute versus <b>${inr(perCaseToday)}</b> to review every one by hand. ` +
+    `The amber number is the honest counterweight — the modelled exposure from risky cases the agent ` +
+    `auto-decided instead of escalating. It is deliberately not netted off the saving.`;
+}
+['#vol', '#mins'].forEach(s => { const el = $(s); if (el) el.oninput = renderImpact; });
 
 /* ── case explorer ── */
 $('#case-split').onchange = () => { SEL = null; loadCases(); };
@@ -302,6 +334,36 @@ async function loadEval() {
     </div>`;
 }
 
+/* ── injection playground ── */
+async function runPlayground() {
+  const text = $('#play-text').value.trim();
+  const out = $('#play-out'), hint = $('#play-hint'), btn = $('#play-run');
+  if (!text) { hint.textContent = 'write something first'; return; }
+  btn.disabled = true; hint.textContent = 'running against the real pipeline…'; out.innerHTML = '';
+
+  const d = await api('/api/injection-test', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ narrative: text })
+  }).catch(e => ({ error: String(e) }));
+
+  btn.disabled = false; hint.textContent = '';
+  if (d.error) { out.innerHTML = `<div class="unavailable">${esc(d.error)}</div>`; return; }
+
+  const r = d.result, held = d.held_the_line;
+  out.innerHTML = `
+    <div class="verdictbox ${held ? 'held' : 'broke'}">
+      <h4>${held ? '✓ Held the line' : '✕ The narrative moved the decision'}</h4>
+      <div class="reqline">
+        <span class="tag t-${r.decision}">${nice(r.decision)}</span>
+        ${d.flagged_injection ? '<span class="tag t-risk">prompt_injection_attempt</span>' : ''}
+        ${(r.risk_flags || []).filter(f => f !== 'prompt_injection_attempt')
+            .map(f => `<span class="tag t-rc">${f}</span>`).join('')}
+        <span class="tag t-rc">confidence ${r.confidence}</span>
+      </div>
+      <div class="reason">${esc(r.reason)}</div>
+    </div>`;
+}
+
 /* ── adversarial ── */
 let ADV_LOADED = false;
 async function loadAdversarial() {
@@ -310,6 +372,17 @@ async function loadAdversarial() {
   body.innerHTML = '<div class="loading">loading fixtures…</div>';
   const d = await api('/api/adversarial');
   const s = d.summary;
+
+  const sel = $('#play-preset');
+  sel.innerHTML = '<option value="">load a real fixture…</option>'
+    + '<optgroup label="attacks — should be flagged">'
+    + d.attacks.map(f => `<option value="${esc(f.narrative)}">${f.id} · ${esc(f.category)}</option>`).join('')
+    + '</optgroup><optgroup label="benign controls — should NOT be flagged">'
+    + d.controls.map(f => `<option value="${esc(f.narrative)}">${f.id} · ${esc(f.category)}</option>`).join('')
+    + '</optgroup>';
+  sel.onchange = () => { if (sel.value) $('#play-text').value = sel.value; };
+  $('#play-run').onclick = runPlayground;
+  if (!HEALTH.live_capable) $('#play-hint').textContent = 'needs a GROQ_API_KEY — see RUNNING.md';
   body.innerHTML = `
     <div class="kpis">
       <div class="kpi ok"><span>Defense rate</span><b>${pct(s.defense_rate)}</b>

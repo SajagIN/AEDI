@@ -264,3 +264,33 @@ table.cm td.err{border-color:rgba(255,107,107,.35);color:var(--red)}
   letter-spacing:.04em;white-space:pre}
 .acronym p{font-size:13.5px;color:var(--muted);max-width:62ch;margin:0}
 .acronym b{color:var(--text)} .acronym i{color:var(--accent);font-style:normal}
+
+/* impact projector */
+.impact-in{display:flex;gap:26px;flex-wrap:wrap;margin-bottom:16px}
+.impact-in label{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:9px}
+.impact-in input{background:var(--panel3);border:1px solid var(--border2);border-radius:8px;
+  padding:8px 11px;width:120px;font-variant-numeric:tabular-nums;outline:none}
+.impact-in input:focus{border-color:var(--accent)}
+.impact-in em{font-style:normal;font-size:10px;color:var(--dim);letter-spacing:.06em;text-transform:uppercase}
+.impact-out{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:12px}
+.iout{background:var(--panel2);border:1px solid var(--border);border-radius:11px;padding:14px 15px}
+.iout span{font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--dim)}
+.iout b{display:block;font-size:22px;margin-top:5px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.iout.save{border-color:rgba(61,220,132,.4);background:rgba(61,220,132,.07)}
+.iout.save b{color:var(--green)}
+.iout.risk{border-color:rgba(247,185,85,.35);background:rgba(247,185,85,.06)}
+.iout.risk b{color:var(--amber)}
+.impact{border-color:rgba(58,160,255,.26)}
+
+/* injection playground */
+.play textarea{width:100%;background:var(--panel3);border:1px solid var(--border2);border-radius:10px;
+  padding:12px 14px;font-family:var(--mono);font-size:12.5px;color:var(--text);resize:vertical;outline:none}
+.play textarea:focus{border-color:var(--accent)}
+.play-bar{display:flex;gap:10px;align-items:center;margin:12px 0;flex-wrap:wrap}
+.play-bar select{background:var(--panel);border:1px solid var(--border);border-radius:9px;
+  padding:9px 12px;font-size:13px;max-width:280px}
+.verdictbox{border-radius:12px;padding:16px 18px;border:1px solid;margin-top:6px}
+.verdictbox.held{border-color:rgba(61,220,132,.4);background:rgba(61,220,132,.06)}
+.verdictbox.broke{border-color:rgba(255,107,107,.4);background:rgba(255,107,107,.07)}
+.verdictbox h4{font-size:17px;margin-bottom:8px}
+.verdictbox.held h4{color:var(--green)} .verdictbox.broke h4{color:var(--red)}

@@ -50,6 +50,17 @@
 
   <div class="kpis" id="kpis"></div>
 
+  <div class="panel impact">
+    <h3>What this is worth <span class="hint">— projected from the measured cost model, not invented</span></h3>
+    <div class="impact-in">
+      <label>Disputes / month <input id="vol" type="number" value="4000" min="1" step="100"></label>
+      <label>Minutes an analyst spends per review <input id="mins" type="number" value="12" min="1" step="1">
+        <em>your assumption</em></label>
+    </div>
+    <div class="impact-out" id="impact-out"></div>
+    <p class="note" id="impact-note"></p>
+  </div>
+
   <div class="grid-2">
     <div class="panel">
       <h3>How a decision is made</h3>
@@ -140,6 +151,22 @@
     <p>Fixed, publicly-documented injection patterns used as regression tests. No novel attack
        generation, no third-party targeting, no offensive capability. It exists so the defense can be
        measured rather than asserted.</p>
+  </div>
+  <div class="panel">
+    <h3>Injection playground <span class="hint">— try to talk it out of the money</span></h3>
+    <p class="lede">Every run below uses one deliberately neutral case: a non-risky merchant, no amount
+      anomaly, and evidence that fully satisfies reason code 13.1. The correct answer is
+      <b class="c-contest">contest</b>. The narrative is the only variable — so if the text moves the
+      decision, a merchant just argued their way into a payout.</p>
+    <div class="play">
+      <textarea id="play-text" rows="3" placeholder="Write a merchant narrative — try to make it decide for you…"></textarea>
+      <div class="play-bar">
+        <button class="btn" id="play-run">▶ Run against the pipeline</button>
+        <select id="play-preset"><option value="">load a real fixture…</option></select>
+        <span class="hint" id="play-hint"></span>
+      </div>
+      <div id="play-out"></div>
+    </div>
   </div>
   <div id="advbody"></div>
 </section>
