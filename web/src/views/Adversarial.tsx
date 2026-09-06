@@ -72,7 +72,7 @@ export default function Adversarial({ health }: { health: Health }) {
           <div className="mt-3 flex flex-wrap items-center gap-2.5">
             <Button onClick={run} disabled={busy || !text.trim()}><Play size={14} /> Run against the pipeline</Button>
             <select onChange={(e) => e.target.value && setText(e.target.value)} value=""
-              className="h-9 max-w-[300px] rounded-[3px] border border-input bg-background/70 px-3 font-mono text-[12.5px] text-foreground shadow-inset transition-colors focus-visible:border-brass/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brass/30">
+              className="h-9 max-w-[300px] rounded-lg border border-input bg-background/70 px-3 font-mono text-[12.5px] text-foreground shadow-inset transition-colors focus-visible:border-cobalt/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cobalt/30">
               <option value="">load a real fixture…</option>
               <optgroup label="attacks — should be flagged">
                 {d?.attacks.map((f) => <option key={f.id} value={f.narrative}>{f.id} · {f.category}</option>)}
@@ -88,13 +88,13 @@ export default function Adversarial({ health }: { health: Health }) {
           </div>
 
           {out?.error && (
-            <div className="mt-4 rounded-[3px] border border-signal-warn/30 bg-signal-warn/[.06] p-4 text-[13px] leading-relaxed">
+            <div className="mt-4 rounded-lg border border-signal-warn/30 bg-signal-warn/[.06] p-4 text-[13px] leading-relaxed">
               {out.error}
             </div>
           )}
 
           {out && !out.error && (
-            <div className={`mt-4 animate-reveal rounded-[3px] border p-5 ${out.held_the_line ? "border-signal-good/30 bg-signal-good/[.05]" : "border-signal-bad/30 bg-signal-bad/[.05]"}`}>
+            <div className={`mt-4 animate-reveal rounded-lg border p-5 ${out.held_the_line ? "border-signal-good/30 bg-signal-good/[.05]" : "border-signal-bad/30 bg-signal-bad/[.05]"}`}>
               <div className={`mb-3 flex items-center gap-2 text-[17px] font-semibold ${out.held_the_line ? "text-signal-good" : "text-signal-bad"}`}>
                 {out.held_the_line ? <><ShieldCheck size={18} /> Held the line</> : <><ShieldX size={18} /> The narrative moved the decision</>}
               </div>
@@ -109,7 +109,7 @@ export default function Adversarial({ health }: { health: Health }) {
                 <Badge variant="outline">confidence {out.result.confidence}</Badge>
               </div>
               <Separator className="mb-3" />
-              <p className="text-[13px] leading-relaxed">{out.result.reason}</p>
+              <p className="font-quote text-[16px] italic leading-relaxed">{out.result.reason}</p>
             </div>
           )}
         </CardContent>

@@ -45,14 +45,14 @@ export default function App() {
           Set like the head of a printed report: the wordmark in the serif,
           everything else in small monospace caps, all of it sitting on a
           hairline rule. */}
-      <header className="sticky top-0 z-50 border-b border-border bg-background/85 backdrop-blur-xl">
+      <header className="sticky top-0 z-50 border-b border-border frost">
         <div className="mx-auto max-w-[1400px] px-6">
           <div className="flex h-[68px] items-center gap-5">
-            <img src="/logo.png" alt="" className="h-8 w-8 rounded-[3px] ring-1 ring-brass/25" />
+            <img src="/logo.png" alt="" className="h-8 w-8 rounded-lg ring-1 ring-cobalt/25" />
 
             <div className="flex items-baseline gap-3">
               <span className="font-display text-[27px] leading-none tracking-[.02em]">AEDI</span>
-              <span className="hidden font-display text-[15px] italic leading-none text-brass sm:inline">
+              <span className="hidden font-quote text-[16px] italic leading-none text-cobalt sm:inline">
                 because a hunch isn&rsquo;t evidence
               </span>
             </div>
@@ -63,7 +63,7 @@ export default function App() {
               </span>
 
               {health && (
-                <span className="flex items-center gap-2 rounded-[2px] border border-border bg-secondary/60 px-2.5 py-1.5">
+                <span className="flex items-center gap-2 rounded-md border border-border bg-secondary/60 px-2.5 py-1.5">
                   <span className={`h-1.5 w-1.5 rounded-full ${live ? "animate-ember bg-signal-good" : "bg-signal-info"}`} />
                   <span className="dateline text-foreground/80">{live ? health.model : "Replay"}</span>
                   <span className="dateline text-muted-foreground/60">{live ? "live" : "no key needed"}</span>
@@ -75,7 +75,7 @@ export default function App() {
           <TabsList className="w-full justify-start overflow-x-auto border-b-0">
             {TABS.map((t, i) => (
               <TabsTrigger key={t.v} value={t.v} className="reveal group" style={{ "--i": i } as React.CSSProperties}>
-                <span className="mr-2 text-[9px] text-muted-foreground/40 transition-colors group-data-[state=active]:text-brass/60">
+                <span className="mr-2 text-[9px] text-muted-foreground/40 transition-colors group-data-[state=active]:text-cobalt/60">
                   {t.i}
                 </span>
                 {t.n}

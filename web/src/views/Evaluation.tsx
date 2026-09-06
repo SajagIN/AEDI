@@ -14,7 +14,7 @@ export default function Evaluation({ health, split, setSplit }:
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-3">
         <select value={split} onChange={(e) => setSplit(e.target.value)}
-          className="h-9 rounded-[3px] border border-input bg-background/70 px-3 font-mono text-[12.5px] text-foreground shadow-inset transition-colors focus-visible:border-brass/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brass/30">
+          className="h-9 rounded-lg border border-input bg-background/70 px-3 font-mono text-[12.5px] text-foreground shadow-inset transition-colors focus-visible:border-cobalt/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cobalt/30">
           {Object.entries(health.splits).map(([k, v]) => (
             <option key={k} value={k}>{k}{k === "held_out" ? " · opened once, at code freeze" : ""} · {v.cases} cases</option>
           ))}
@@ -27,7 +27,7 @@ export default function Evaluation({ health, split, setSplit }:
       {m && !m.available && (
         <Card><CardContent className="p-10 text-center">
           <p className="text-[13.5px] text-muted-foreground">{m.message}</p>
-          <code className="mt-3 inline-block rounded-[3px] bg-secondary px-3 py-2 font-mono text-[12px]">
+          <code className="mt-3 inline-block rounded-lg bg-secondary px-3 py-2 font-mono text-[12px]">
             python code/main.py --input dataset/{m.split}/cases.csv --output dataset/{m.split}/output.csv
           </code>
         </CardContent></Card>
@@ -48,7 +48,7 @@ export default function Evaluation({ health, split, setSplit }:
             <p className="text-[12.5px] leading-relaxed text-muted-foreground">
               Different denominators &mdash; don&rsquo;t read the rows against each other. Finish the run:
             </p>
-            <pre className="mt-3 overflow-x-auto rounded-[3px] border border-border bg-background/70 p-3.5 font-mono text-[11.5px] leading-relaxed text-foreground/85">
+            <pre className="mt-3 overflow-x-auto rounded-lg border border-border bg-secondary p-3.5 font-mono text-[11.5px] leading-relaxed text-foreground/85">
 {`python code/main.py --input dataset/${m.split}/cases.csv \\
   --output dataset/${m.split}/output.csv`}
             </pre>
@@ -89,7 +89,7 @@ export default function Evaluation({ health, split, setSplit }:
                           const err = !diag && v > 0 && a !== "manual_review";
                           return (
                             <td key={p}
-                              className={`rounded-[3px] border py-3 text-center text-[15px] font-semibold tnum ${
+                              className={`rounded-lg border py-3 text-center text-[15px] font-semibold tnum ${
                                 diag && v > 0 ? "border-signal-good/35 bg-signal-good/[.08] text-signal-good"
                                 : err ? "border-signal-bad/30 bg-signal-bad/[.06] text-signal-bad"
                                 : v === 0 ? "border-border bg-secondary/40 font-normal text-muted-foreground/50"
@@ -142,7 +142,7 @@ export default function Evaluation({ health, split, setSplit }:
                 ["Bypassed reviews", String(b.cost.n_bypassed_review)],
                 ["Unpriced exposure / 100", inr(b.cost.bypassed_review_exposure_per_100_inr)],
               ].map(([l, v]) => (
-                <div key={l} className="rounded-[3px] border border-border bg-secondary/40 p-3.5">
+                <div key={l} className="rounded-lg border border-border bg-secondary/40 p-3.5">
                   <div className="text-[10px] font-medium uppercase tracking-[.05em] text-muted-foreground">{l}</div>
                   <div className="mt-1 text-[17px] font-semibold tnum">{v}</div>
                 </div>

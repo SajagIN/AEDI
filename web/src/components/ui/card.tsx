@@ -1,14 +1,14 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-/* A panel is a piece of card stock: hairline edge, faint top highlight where
-   the lamp catches it, and a deep soft shadow. No rounded-pill softness —
-   this is a document, so the corners are nearly square. */
+/* A panel is a milled recess: no visible frame, just a hairline tint, a
+   contact shadow and a wide soft one. On white the border has to do almost
+   nothing, or it becomes the loudest thing on the screen. */
 const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div ref={ref}
       className={cn(
-        "relative rounded-[3px] border border-border/80 bg-card/85 text-card-foreground shadow-panel backdrop-blur-[2px]",
+        "relative rounded-xl border border-border/60 bg-card text-card-foreground shadow-panel",
         className)}
       {...props} />
   )
@@ -22,7 +22,7 @@ const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDiv
 );
 CardHeader.displayName = "CardHeader";
 
-/* Section heads are set in the serif at a size that reads as a heading in a
+/* Section heads are set in the display sans at a size that reads as a heading in a
    printed report rather than a web card title. */
 const CardTitle = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLHeadingElement>>(
   ({ className, ...props }, ref) => (

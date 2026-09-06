@@ -6,13 +6,13 @@ import { cn } from "@/lib/utils";
    than filled. They label provenance and verdicts, so they must never look
    like buttons. */
 const badgeVariants = cva(
-  "inline-flex items-center gap-1 whitespace-nowrap rounded-[2px] border px-1.5 py-[3px] font-mono text-[10px] uppercase leading-none tracking-[.1em]",
+  "inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-1.5 py-[3px] font-mono text-[10px] uppercase leading-none tracking-[.1em]",
   {
     variants: {
       variant: {
         default: "border-border bg-secondary text-secondary-foreground",
         outline: "border-border/80 text-muted-foreground",
-        brass: "border-brass/35 bg-brass/[.12] text-brass",
+        cobalt: "border-cobalt/35 bg-cobalt/[.12] text-cobalt",
         info: "border-signal-info/30 bg-signal-info/[.10] text-signal-info",
         good: "border-signal-good/30 bg-signal-good/[.10] text-signal-good",
         warn: "border-signal-warn/35 bg-signal-warn/[.10] text-signal-warn",

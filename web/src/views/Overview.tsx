@@ -63,7 +63,7 @@ export default function Overview({ split }: { split: string }) {
       <div className="reveal pt-16 sm:pt-24" style={{ "--i": 0 } as React.CSSProperties}>
         <h1 className="max-w-[14ch] font-display text-[clamp(52px,9vw,120px)] leading-[0.86] tracking-[-.02em]">
           Chargebacks,{" "}
-          <span className="italic text-brass">answered with evidence.</span>
+          <span className="font-quote italic text-cobalt">answered with evidence.</span>
         </h1>
         {m?.available && (
           <div className="dateline mt-10 text-muted-foreground/50">
@@ -127,7 +127,7 @@ export default function Overview({ split }: { split: string }) {
                 <p className="mt-1 text-[12.5px] text-muted-foreground">
                   A run that stopped early isn&rsquo;t a sample. Finish it, or switch splits.
                 </p>
-                <code className="mt-3 block overflow-x-auto rounded-[3px] border border-border bg-background/70 p-3 font-mono text-[11px] text-foreground/85">
+                <code className="mt-3 block overflow-x-auto rounded-lg border border-border bg-secondary p-3 font-mono text-[11px] text-foreground/85">
                   python code/main.py --input dataset/{m?.split}/cases.csv --output dataset/{m?.split}/output.csv
                 </code>
               </div>

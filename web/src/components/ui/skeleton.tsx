@@ -4,5 +4,5 @@ import { cn } from "@/lib/utils";
    their place keeps the layout still, which is most of what "fast" feels
    like. */
 export function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("animate-pulse rounded-[2px] bg-foreground/[.07]", className)} {...props} />;
+  return <div className={cn("animate-pulse rounded-md bg-foreground/[.07]", className)} {...props} />;
 }

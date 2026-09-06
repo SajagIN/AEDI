@@ -23,12 +23,12 @@ const AccordionTrigger = React.forwardRef<
   <AccordionPrimitive.Header className="flex">
     <AccordionPrimitive.Trigger ref={ref}
       className={cn(
-        "group flex flex-1 items-center justify-between gap-4 py-4 text-left font-display text-[17px] text-foreground/90 transition-colors hover:text-brass focus-visible:outline-none",
+        "group flex flex-1 items-center justify-between gap-4 py-4 text-left font-display text-[17px] text-foreground/90 transition-colors hover:text-cobalt focus-visible:outline-none",
         className)}
       {...props}>
       {children}
       {/* A plus that becomes a minus. Quieter than a rotating chevron. */}
-      <Plus size={15} className="shrink-0 text-muted-foreground/60 transition-transform duration-300 group-hover:text-brass group-data-[state=open]:rotate-45" />
+      <Plus size={15} className="shrink-0 text-muted-foreground/60 transition-transform duration-300 group-hover:text-cobalt group-data-[state=open]:rotate-45" />
     </AccordionPrimitive.Trigger>
   </AccordionPrimitive.Header>
 ));

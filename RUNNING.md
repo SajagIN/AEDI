@@ -153,16 +153,20 @@ component sources, kept in `web/`. **The built bundle is committed to `app/stati
 `python app/server.py` works on a machine with no Node installed — you only need the
 toolchain if you want to change the UI.
 
-The theme is documented at the top of `web/tailwind.config.js`. Two conventions are worth
-knowing before you edit a view:
+The theme is documented at the top of `web/tailwind.config.js`. Three conventions are
+worth knowing before you edit a view:
 
-- **Colour carries meaning.** Neutrals all sit on hue 30 (warm ink) and brass is the only
-  bright, reserved for money, warnings about money, and the primary action on a screen.
-  Verdicts use the `signal-*` names — `good`, `bad`, `warn`, `info`, `alt` — never raw hues,
-  so a view never has to know which colour "won" is this month.
+- **Colour carries meaning.** The ground is white and the neutrals are a few degrees
+  cool, so cobalt `#0066CC` is the only saturated thing on a screen that is not a
+  verdict. Everything bright is money, or a warning about money. Verdict colours are
+  cut to clear 4.5:1 on paper: good `#0F7B43`, bad `#C62A1B`, warn `#9A5B00`,
+  info `#1F6FA8`, model `#5B4BB8`.
 - **Provenance has a typeface.** Anything the code computed is set in IBM Plex Mono;
-  anything the model wrote is set in Instrument Serif italic. That distinction is the
-  product's central claim, so it is spelled in the type rather than in a caption.
+  anything the model wrote is set in Instrument Serif italic (`font-quote`). That
+  distinction is the product's central claim, so it is spelled in the type, not a
+  caption. The interface itself is Manrope, tracked tighter as it gets larger.
+- **Always use the `signal-*` names**, never a raw hue. A view should not have to know
+  which colour "won" is this month, and the light and dark cuts of the theme differ.
 
 Fonts are bundled through `@fontsource`, not fetched from a CDN — the console is meant to
 survive a demo table with no network.
