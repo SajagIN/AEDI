@@ -56,9 +56,32 @@ Four tabs:
 - **Overview** — what the system does, the deterministic-vs-model dividing line, the threat model. The headline numbers are computed live, not hard-coded in the page.
 - **Case Explorer** — the actual demo. Pick a case, see its evidence with pipeline-assigned IDs, the reason code's requirement checklist, the deterministic risk signals, and the untrusted merchant narrative. Hit **Replay committed decision** to watch the pipeline trace step through and land on a decision, with the cited evidence highlighted and compared against ground truth.
 - **Evaluation** — confusion matrix, precision/recall, coverage and the cost model for the agent and both baselines, all computed in-process by `code/evaluation/main.py`.
-- **Adversarial** — the 24 attack fixtures and 10 benign controls, with the defence posture statement.
+- **Adversarial** — the 24 attack fixtures and 10 benign controls, with the defence posture statement, plus an **injection playground**: paste any narrative and run it against a deliberately neutral case whose correct answer is `contest`. If your text moves the decision, the defence just failed in front of you. (The playground needs LIVE mode — in REPLAY it refuses rather than fabricating a verdict.)
 
 Change the port with `PORT=9000 python app/server.py`.
+
+### Rebuilding the console UI
+
+The console is a React + TypeScript + Tailwind app using [shadcn/ui](https://ui.shadcn.com)
+component sources, kept in `web/`. **The built bundle is committed to `app/static/`**, so
+`python app/server.py` works on a machine with no Node installed — you only need the
+toolchain if you want to change the UI.
+
+```bash
+cd web
+npm install
+npm run build     # type-checks, then emits into ../app/static/
+```
+
+For hot reload while Flask keeps serving the API:
+
+```bash
+python app/server.py       # terminal 1 — API on :8000
+cd web && npm run dev      # terminal 2 — UI on :5173, proxies /api to :8000
+```
+
+Open **http://127.0.0.1:5173** for the dev server. Run `npm run build` before committing
+so the no-Node path stays working; `web/node_modules/` is gitignored.
 
 ---
 
@@ -132,3 +155,6 @@ chmod +x .git/hooks/pre-commit
 | `--split held_out is refused` | Pass `--i-am-opening-held-out-for-real`. The guard is deliberate. |
 | `AlreadyRunningError` from the adversarial suite | A lock file is preventing two overlapping runs from corrupting `results.csv`. Delete `.run_suite.lock` if nothing else is running. |
 | `ModuleNotFoundError: flask` | `pip install -r app/requirements.txt` — the web console's dependency, not the pipeline's. |
+| `429 ... tokens per minute (TPM)` / `Please try again in 12.5s` | An ordinary rate limit. The pipeline already handles it: it parses the retry hint, sleeps, and resends. Nothing to do. |
+| `429 ... output tokens per minute (OTPM)` / `reduce max_tokens` | **Not** a transient limit — resending the identical request can never succeed, because the request's own `max_tokens` exceeds your tier's per-minute output ceiling. The pipeline detects this specific message, reads the advertised `Limit`, permanently lowers its output ceiling for the rest of the run, and retries immediately with no sleep. If you'd rather pin it up front and skip the discovery round-trip, set `AEDI_MAX_OUTPUT_TOKENS=1000` in `.env`. The floor is 256 tokens; below that a response can't fit the required JSON. |
+| The console looks unstyled, or a tab renders blank | `app/static/` is stale or partially deleted. Rebuild it: `cd web && npm install && npm run build`. |

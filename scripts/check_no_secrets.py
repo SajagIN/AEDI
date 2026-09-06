@@ -44,6 +44,21 @@ PLACEHOLDER_LOOKALIKES = re.compile(
     re.IGNORECASE,
 )
 
+# A credential is never a bare number, a bare identifier being read back out, or
+# a call expression. These forms show up constantly in ordinary code that happens
+# to have TOKEN/SECRET in a variable name (e.g. MAX_OUTPUT_TOKENS = 1000), and
+# flagging them trains people to ignore the scanner — which is the real risk.
+NON_SECRET_SHAPES = re.compile(
+    r"""^(
+          [-+]?\d[\d_]*(\.\d+)?      # 1000, 1_000, 2.5
+        | (0[xXbBoO])[0-9A-Fa-f_]+   # 0x1f
+        | [Tt]rue | [Ff]alse | None
+        | [A-Za-z_][A-Za-z0-9_.]*\(.*  # a call: int(...), os.getenv(...)
+        | _?[A-Z][A-Z0-9_]*          # another CONSTANT_NAME being aliased
+    )$""",
+    re.VERBOSE,
+)
+
 ASSIGNMENT_PATTERN = re.compile(
     r"""(?P<name>[A-Z0-9_]*(?:API_KEY|SECRET|TOKEN|PASSWORD)[A-Z0-9_]*)\s*[:=]\s*["']?(?P<value>[^\s"'#]+)""",
 )
@@ -84,7 +99,13 @@ def scan_file(path: Path) -> list:
     if path.name not in ALLOWED_PLACEHOLDER_FILES:
         for m in ASSIGNMENT_PATTERN.finditer(text):
             value = m.group("value").strip("\"'")
-            if value and not PLACEHOLDER_LOOKALIKES.match(value) and len(value) >= 8:
+            if (
+                value
+                and not PLACEHOLDER_LOOKALIKES.match(value)
+                and not NON_SECRET_SHAPES.match(value)
+                and len(value) >= 8
+            ):
+
                 findings.append(
                     f"{path.relative_to(REPO_ROOT)}: {m.group('name')} assigned a non-placeholder-looking value"
                 )

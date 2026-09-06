@@ -417,6 +417,72 @@ def build_messages(row: dict, ctx: dict) -> list:
     ]
 
 
+# ── Output-token budget, adaptive ─────────────────────────────────────────
+# Groq's free tier enforces an output-tokens-per-minute (OTPM) ceiling that can
+# be LOWER than the per-request max_tokens this pipeline would otherwise ask
+# for. When that happens the API rejects the call with a 429 *before generating
+# anything*, and — unlike an ordinary rate limit — waiting does not help: an
+# identical retry is rejected identically, forever. On a 1000-OTPM account the
+# old fixed 1500/3800 budgets meant the pipeline could never place a single
+# successful call, and the run would burn every retry then write 100 fallback
+# rows.
+#
+# The fix is to shrink the request, not to sleep on it. The first rejection
+# carries the account's real limit in its message; we parse it, lower the
+# ceiling for the rest of the process, and retry immediately. One case pays the
+# discovery cost, every later case is already correctly sized.
+#
+# Pin it explicitly with AEDI_MAX_OUTPUT_TOKENS to skip discovery entirely.
+ROUND_MAX_TOKENS = 1500       # info-gathering round
+CLASSIFY_MAX_TOKENS = 3800    # forced final round, needs room for the tool call
+MIN_USABLE_OUTPUT_TOKENS = 256
+
+_OTPM_RE = re.compile(r"output tokens per minute.{0,80}?Limit (\d+)", re.I | re.S)
+
+
+def _initial_output_ceiling():
+    raw = os.environ.get("AEDI_MAX_OUTPUT_TOKENS", "").strip()
+    if not raw:
+        return None
+    try:
+        return max(MIN_USABLE_OUTPUT_TOKENS, int(raw))
+    except ValueError:
+        print(f"  Ignoring non-numeric AEDI_MAX_OUTPUT_TOKENS={raw!r}", file=sys.stderr)
+        return None
+
+
+_OUTPUT_TOKEN_CEILING = _initial_output_ceiling()
+
+
+def output_token_budget(requested: int) -> int:
+    """Clamp a max_tokens request to whatever this account has been shown to allow."""
+    if _OUTPUT_TOKEN_CEILING is None:
+        return requested
+    return max(MIN_USABLE_OUTPUT_TOKENS, min(requested, _OUTPUT_TOKEN_CEILING))
+
+
+def note_output_token_limit(err: str) -> bool:
+    """Detect the OTPM 'request too large' rejection and lower the ceiling.
+
+    Returns True if this error was that rejection — in which case the caller
+    should retry immediately rather than sleeping, because the next request
+    will be a genuinely different (smaller) one.
+    """
+    global _OUTPUT_TOKEN_CEILING
+    m = _OTPM_RE.search(err)
+    if not m:
+        return False
+    limit = int(m.group(1))
+    new = limit if _OUTPUT_TOKEN_CEILING is None else min(_OUTPUT_TOKEN_CEILING, limit)
+    new = max(MIN_USABLE_OUTPUT_TOKENS, new)
+    if new != _OUTPUT_TOKEN_CEILING:
+        _OUTPUT_TOKEN_CEILING = new
+        print(f"  OTPM ceiling detected: capping output at {new} tokens/request for the rest of "
+              f"this run (export AEDI_MAX_OUTPUT_TOKENS={new} to skip this discovery next time).",
+              file=sys.stderr)
+    return True
+
+
 def _parse_wait_seconds(err: str, default: float) -> float:
     m = re.search(r"try again in (?:(\d+)m)?(\d+(?:\.\d+)?)s", err)
     if m:
@@ -433,6 +499,10 @@ def _handle_error(pool: KeyPool, key_name: str, err: str) -> float:
     if "tokens per day" in low or "(tpd)" in low:
         pool.mark_dead(key_name, _parse_wait_seconds(err, 900) + 5)
         return 2
+    if note_output_token_limit(err):
+        # Deterministic rejection, not congestion: the request was too big.
+        # It has now been resized, so retry at once instead of sleeping.
+        return 0
     if "429" in err or "rate_limit" in low:
         return _parse_wait_seconds(err, 15)
     return 5
@@ -673,7 +743,8 @@ def _run_agent_turn(pool: KeyPool, cache: ResponseCache, base_messages: list, ct
         norm = None
         for local_attempt in range(local_attempts):
             kwargs = dict(model=MODEL, messages=messages, temperature=0.1,
-                          max_tokens=3800 if force_classify else 1500,
+                          max_tokens=output_token_budget(
+                              CLASSIFY_MAX_TOKENS if force_classify else ROUND_MAX_TOKENS),
                           extra_body={"reasoning_format": "hidden"})
             if force_classify:
                 kwargs["tools"] = [CLASSIFY_CHARGEBACK_TOOL]

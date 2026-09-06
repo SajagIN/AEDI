@@ -13,3 +13,7 @@ tests/adversarial_regression/.run_suite.lock
 
 # web console
 app/static/.DS_Store
+
+# web console build tooling
+web/node_modules/
+web/dist/
