@@ -107,6 +107,20 @@ missing or wrong HMAC-SHA256 signature are dropped. A dispute arriving this
 way is labelled `live from Razorpay`, is actionable, and contest/accept are
 genuinely issued against it.
 
+### When something goes wrong
+
+Run the doctor. It walks the whole path — credentials, key shape, DNS, TCP,
+TLS, authentication, then each endpoint the console calls — and stops at the
+first broken layer with the fix for that specific layer:
+
+```bash
+python scripts/razorpay_doctor.py
+```
+
+It never prints a secret. A `502` from the console always carries the same
+diagnosis in its JSON body (`cause` and `fix` fields), and the Live tab shows
+it as a red banner rather than failing silently.
+
 ### Trying it without a Razorpay account
 
 `scripts/razorpay_mock.py` serves the same endpoints locally, pre-seeded with
@@ -235,3 +249,7 @@ chmod +x .git/hooks/pre-commit
 | Live tab loads but "Test connection" fails | The message is Razorpay's own. `Authentication failed` means the key/secret pair is wrong or from the other mode; `could not reach Razorpay` means no network route. |
 | Checkout popup never opens | `checkout.razorpay.com` is blocked, or the key id is a test key while the dashboard is in live mode. Reuse an existing payment from the list instead. |
 | Razorpay webhook returns 401 | `RAZORPAY_WEBHOOK_SECRET` must match the secret set on the webhook in the Dashboard. Unsigned requests are dropped on purpose. |
+| Live tab: `The HTTPS connection to Razorpay was cut` | Not your keys. A firewall, HTTPS-inspecting antivirus, or captive-portal wifi is interfering. Confirm with a phone hotspot, or `curl -sSv https://api.razorpay.com -o /dev/null`. |
+| Live tab: `Your Python cannot verify HTTPS certificates` | Local Python install, not Razorpay. macOS: run `Install Certificates.command`. Linux: update `ca-certificates`. |
+| Live tab: `Razorpay rejected the key id / secret pair` | The secret belongs to a different key id, or one was pasted incomplete. Regenerate **both together** in Dashboard → Settings → API Keys with the toggle on Test. The secret is shown only once. |
+| `/api/rzp/*` returns 502 | The body has `cause` and `fix`. `curl -s localhost:8000/api/rzp/payments \| python -m json.tool`, or just run `python scripts/razorpay_doctor.py`. |

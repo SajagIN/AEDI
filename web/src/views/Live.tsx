@@ -9,7 +9,7 @@ import {
   rzpStatus, rzpReference, rzpPayments, rzpDisputes, rzpEvents, rzpOrder,
   rzpConfirm, rzpChargeback, rzpDecide, paise, clock, nice, inr,
   type RzpStatus, type RzpReference, type RzpPayment, type RzpDispute,
-  type RzpEvent, type RzpDecision,
+  type RzpEvent, type RzpDecision, type RzpFailure,
 } from "@/lib/api";
 import {
   AlertTriangle, CheckCircle2, CircleDot, CreditCard, Gavel, Link2, Loader2,
@@ -58,11 +58,18 @@ export default function Live() {
   const [decision, setDecision] = useState<RzpDecision | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [conn, setConn] = useState<RzpFailure | null>(null);
 
   const lastEventId = useRef(0);
   const connected = status?.state === "configured";
 
-  useEffect(() => { rzpStatus().then(setStatus); rzpReference().then(setRef).catch(() => {}); }, []);
+  /* Probe on mount. Previously the card said "configured" — meaning only that
+     .env had values — while every call was failing, which made a dead
+     connection look healthy until something was clicked. */
+  useEffect(() => {
+    rzpStatus(true).then(setStatus);
+    rzpReference().then(setRef).catch(() => {});
+  }, []);
 
   /* Poll the event feed. Polling rather than SSE on purpose: it survives
      proxies that buffer streamed responses, which is most of them. */
@@ -83,8 +90,15 @@ export default function Live() {
   }, [connected]);
 
   const refreshLists = () => {
-    rzpPayments().then((r) => setPayments(r.payments || [])).catch(() => {});
-    rzpDisputes().then((r) => setDisputes(r.disputes || [])).catch(() => {});
+    rzpPayments()
+      .then((r) => {
+        setPayments(r.payments || []);
+        setConn(r.error ? (r as RzpFailure) : null);
+      })
+      .catch(() => setConn({ error: "Could not reach the console's own API.", status: null, code: null }));
+    rzpDisputes()
+      .then((r) => { setDisputes(r.disputes || []); if (r.fetch_error) setConn(r.fetch_error); })
+      .catch(() => {});
   };
   useEffect(() => { if (connected) refreshLists(); }, [connected]);
 
@@ -274,6 +288,37 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
           </div>
         ))}
       </div>
+
+      {/* A failing connection has to be loud. The keys being present in .env
+          says nothing about whether Razorpay accepts them. */}
+      {(conn || status?.reachable === false) && (
+        <Card className="animate-fade-up border-ios-red/35 bg-ios-red/[.05]">
+          <CardContent className="p-5">
+            <div className="flex items-start gap-3">
+              <WifiOff size={16} className="mt-0.5 shrink-0 text-ios-red" />
+              <div className="min-w-0 flex-1">
+                <div className="text-[14px] font-semibold text-ios-red">
+                  {conn?.cause || status?.cause || "Razorpay calls are failing"}
+                </div>
+                <p className="mt-1.5 text-[13px] leading-relaxed">
+                  {conn?.fix || status?.fix ||
+                    "The credentials are present in .env, but Razorpay is not accepting the calls."}
+                </p>
+                <p className="mt-2 font-mono text-[11.5px] text-muted-foreground">
+                  {conn?.status || status?.reachable === false ? `HTTP ${conn?.status ?? "?"} · ` : ""}
+                  {conn?.error || status?.reach_detail}
+                </p>
+                <p className="mt-3 text-[12px] text-muted-foreground">
+                  For a full layer-by-layer check, run{" "}
+                  <code className="rounded bg-secondary px-1.5 py-0.5 font-mono">
+                    python scripts/razorpay_doctor.py
+                  </code>
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {err && (
         <div className="animate-fade-up rounded-2xl border border-ios-red/30 bg-ios-red/[.05] p-4 text-[13px] text-ios-red">

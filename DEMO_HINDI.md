@@ -12,7 +12,7 @@ English version: `DEMO.md`.
 Ye 5 minute lagta hai. Skip mat karna.
 
 ```bash
-python -m pytest tests/ -q        # 131 passed aana chahiye
+python -m pytest tests/ -q        # 149 passed aana chahiye
 python app/server.py              # console chalu, http://127.0.0.1:8000
 ```
 
@@ -297,6 +297,7 @@ jayegi. **"Raise chargeback"** dabao.
 |---|---|
 | Model chalte waqt error de raha hai | Ghabrao mat. **"Replay committed decision"** dabao — wo bina internet ke chalta hai. Bolo: *"ye pichhli poori run ka jawab hai, wahi code hai."* |
 | Razorpay ki window nahi khul rahi | Chhod do. Neeche *"reuse a payment already on the account"* wali list se koi purana payment utha lo. |
+| Live tab par laal patti aa gayi | Usmein hi likha hai kya galat hai aur kya karna hai. Zyadatar college/office ka wifi rok raha hota hai — phone ka hotspot laga ke dekho. Poori jaanch ke liye: `python scripts/razorpay_doctor.py` |
 | Page khali dikh raha hai | Refresh karo. Nahi hua to `python app/server.py` dobara chalao. |
 | Internet hi nahi hai | Part 5 chhod do. Baaki chaar hisse **bina internet ke poore chalte hain** — Overview, Case Explorer (replay), Evaluation, aur Adversarial ke 24 attack padhne ke liye. Yahi is project ki khaas baat hai, bol bhi sakte ho. |
 | Time khatam ho raha hai | Part 1 (paisa) aur Part 3 (attack) — bas ye do. Yehi yaad rehte hain. |

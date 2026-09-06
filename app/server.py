@@ -467,7 +467,7 @@ def rzp_guard():
     try:
         return rzp_client(), None
     except razorpay_live.RazorpayError as e:
-        return None, (jsonify(e.as_dict()), 400)
+        return None, (jsonify(razorpay_live.error_payload(e)), 400)
 
 
 @app.get("/api/rzp/status")
@@ -491,8 +491,11 @@ def rzp_status():
             except razorpay_live.RazorpayError:
                 out["real_disputes"] = None
         except razorpay_live.RazorpayError as e:
+            cause, fix = razorpay_live.diagnose(e)
             out["reachable"] = False
             out["reach_detail"] = e.message
+            out["cause"] = cause
+            out["fix"] = fix
     return jsonify(out)
 
 
@@ -553,7 +556,7 @@ def rzp_order():
             notes={"source": "aedi-console", "merchant_id": body.get("merchant_id", "")},
         )
     except razorpay_live.RazorpayError as e:
-        return jsonify(e.as_dict()), 502
+        return jsonify(razorpay_live.error_payload(e)), 502
 
     _rzp_events.add("order.created",
                     f"Order {order['id']} created for INR {rupees:,.2f}",
@@ -569,7 +572,7 @@ def rzp_payments():
     try:
         items = client.fetch_payments(count=int(request.args.get("count", 20)))
     except razorpay_live.RazorpayError as e:
-        return jsonify(e.as_dict()), 502
+        return jsonify(razorpay_live.error_payload(e)), 502
     return jsonify({"payments": items, "origin": "razorpay"})
 
 
@@ -590,7 +593,7 @@ def rzp_confirm():
     try:
         payment = client.fetch_payment(payment_id)
     except razorpay_live.RazorpayError as e:
-        return jsonify(e.as_dict()), 502
+        return jsonify(razorpay_live.error_payload(e)), 502
 
     _rzp_events.add("payment.captured",
                     f"Payment {payment['id']} · INR {int(payment.get('amount', 0)) / 100:,.2f} "
@@ -602,7 +605,7 @@ def rzp_confirm():
 @app.get("/api/rzp/disputes")
 def rzp_disputes():
     """Real disputes first, then anything raised locally in this session."""
-    out = []
+    out, fetch_error = [], None
     client, err = rzp_guard()
     if not err:
         try:
@@ -610,12 +613,16 @@ def rzp_disputes():
                 normalised = razorpay_live.dispute_from_razorpay(d)
                 _rzp_disputes.setdefault(normalised["dispute_id"], normalised)
                 out.append(normalised)
-        except razorpay_live.RazorpayError:
-            pass  # a live-fetch failure must not hide locally raised disputes
+        except razorpay_live.RazorpayError as e:
+            # Still return locally raised disputes — but say the live fetch
+            # failed rather than implying an empty account. Silently swallowing
+            # this made a completely broken connection look healthy.
+            fetch_error = razorpay_live.error_payload(e)
     seen = {d["dispute_id"] for d in out}
     out.extend(d for k, d in _rzp_disputes.items() if k not in seen)
     return jsonify({
         "disputes": out,
+        "fetch_error": fetch_error,
         "decisions": _rzp_decisions,
         "note": "Razorpay has no dispute-create API — disputes are raised by the issuing "
                 "bank. Any dispute marked origin=local was raised in this console against "
@@ -650,7 +657,7 @@ def rzp_chargeback():
     try:
         payment = client.fetch_payment(payment_id)
     except razorpay_live.RazorpayError as e:
-        return jsonify(e.as_dict()), 502
+        return jsonify(razorpay_live.error_payload(e)), 502
 
     dispute = razorpay_live.local_dispute(payment, reason_code=reason_code)
     row = razorpay_live.payment_to_case(
@@ -799,7 +806,7 @@ def rzp_submit():
         else:
             updated = client.accept_dispute(dispute["dispute_id"])
     except razorpay_live.RazorpayError as e:
-        return jsonify(e.as_dict()), 502
+        return jsonify(razorpay_live.error_payload(e)), 502
 
     _rzp_events.add("razorpay.responded",
                     f"{decision} submitted for {dispute['dispute_id']} → status "

@@ -428,3 +428,70 @@ def test_events_record_which_side_each_step_came_from(configured, fake):
     events = {e["kind"]: e["origin"] for e in _json(configured.get("/api/rzp/events"))["events"]}
     assert events["payment.captured"] == "razorpay"
     assert events["dispute.raised"] == "local"
+
+
+# ── failures must be visible, not swallowed ───────────────────────────────
+#
+# The bug these pin: /api/rzp/disputes used to catch RazorpayError and return
+# 200 with an empty list, so a completely dead connection rendered as a
+# healthy, empty account.
+
+@pytest.fixture
+def broken(server_module, fake, monkeypatch):
+    """Configured, but pointed at a port with nothing listening."""
+    monkeypatch.setenv("RAZORPAY_KEY_ID", TEST_KEY_ID)   # pragma: allowlist-fake
+    monkeypatch.setenv("RAZORPAY_KEY_SECRET", TEST_KEY_SECRET)
+    monkeypatch.setenv("RAZORPAY_API_BASE", "http://127.0.0.1:1")
+    server_module._rzp_client_cache.update(client=None, key_id=None)
+    server_module._rzp_disputes.clear()
+    server_module._rzp_decisions.clear()
+    server_module._rzp_events.clear()
+    return server_module.app.test_client()
+
+
+def test_disputes_reports_a_failed_fetch_instead_of_pretending_it_is_empty(broken):
+    body = _json(broken.get("/api/rzp/disputes"))
+    assert body["fetch_error"] is not None
+    assert body["fetch_error"]["cause"], "a failure must be explained, not just returned"
+
+
+def test_disputes_still_returns_locally_raised_ones_when_the_fetch_fails(
+        broken, server_module):
+    server_module._rzp_disputes["local_disp_x"] = {
+        "dispute_id": "local_disp_x", "origin": "local", "actionable": False,
+        "payment_id": "pay_x", "amount_paise": 100, "status": "open",
+    }
+    body = _json(broken.get("/api/rzp/disputes"))
+    assert [d["dispute_id"] for d in body["disputes"]] == ["local_disp_x"]
+    assert body["fetch_error"] is not None
+
+
+def test_payments_failure_explains_itself(broken):
+    resp = broken.get("/api/rzp/payments")
+    assert resp.status_code == 502
+    body = _json(resp)
+    assert "blocked" in body["cause"].lower() or "resolve" in body["cause"].lower()
+    assert body["fix"]
+
+
+def test_order_failure_explains_itself(broken):
+    body = _json(broken.post("/api/rzp/order", json={"amount_inr": 100}))
+    assert body["cause"] and body["fix"]
+
+
+def test_status_probe_reports_the_diagnosis_not_just_the_message(
+        server_module, fake, monkeypatch):
+    monkeypatch.setenv("RAZORPAY_KEY_ID", TEST_KEY_ID)   # pragma: allowlist-fake
+    monkeypatch.setenv("RAZORPAY_KEY_SECRET", "definitely_wrong")
+    monkeypatch.setenv("RAZORPAY_API_BASE", fake.base_url)
+    server_module._rzp_client_cache.update(client=None, key_id=None)
+
+    body = _json(server_module.app.test_client().get("/api/rzp/status?probe=1"))
+    assert body["reachable"] is False
+    assert "key id / secret" in body["cause"]
+    assert "Settings -> API Keys" in body["fix"]
+
+
+def test_a_failure_response_still_never_leaks_the_secret(broken):
+    raw = broken.get("/api/rzp/payments").data.decode()
+    assert TEST_KEY_SECRET not in raw

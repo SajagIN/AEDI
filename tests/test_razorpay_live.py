@@ -405,3 +405,100 @@ def test_payment_id_shape_is_validated():
     assert not rzp.looks_like_payment_id("pay_short")
     assert not rzp.looks_like_payment_id("")
     assert not rzp.looks_like_payment_id(None)
+
+
+# ── failure diagnosis ─────────────────────────────────────────────────────
+#
+# A 502 with no explanation is what made a real connection failure
+# undiagnosable in the field. Each shape below must name its own cause.
+
+def _err(message, status=None, code=None):
+    return rzp.RazorpayError(message, status=status, code=code)
+
+
+def test_tls_failure_is_named_as_a_local_python_problem():
+    cause, fix = rzp.diagnose(_err(
+        "could not reach Razorpay at https://api.razorpay.com/v1: "
+        "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed"))
+    assert "certificates" in cause.lower()
+    assert "Install Certificates" in fix or "ca-certificates" in fix
+    assert "keys" in fix.lower(), "must reassure that the credentials are not at fault"
+
+
+def test_dns_failure_is_named():
+    cause, _ = rzp.diagnose(_err("could not reach Razorpay: [Errno -2] Name or service not known"))
+    assert "DNS" in cause
+
+
+def test_blocked_network_is_named():
+    for message in ("Connection refused", "The read operation timed out",
+                    "Network is unreachable"):
+        cause, fix = rzp.diagnose(_err(f"could not reach Razorpay: {message}"))
+        assert "blocked" in cause.lower(), message
+        assert "firewall" in fix.lower() or "proxy" in fix.lower()
+
+
+def test_401_is_named_as_a_credential_problem_not_a_gateway_problem():
+    cause, fix = rzp.diagnose(_err(
+        "Authentication failed due to incorrect key id or secret", status=401))
+    assert "key id / secret" in cause
+    assert "Settings -> API Keys" in fix
+
+
+def test_403_is_distinguished_from_401():
+    cause_401, _ = rzp.diagnose(_err("nope", status=401))
+    cause_403, _ = rzp.diagnose(_err("nope", status=403))
+    assert cause_401 != cause_403
+    assert "not allowed" in cause_403.lower()
+
+
+def test_razorpay_side_outage_is_not_blamed_on_the_user():
+    cause, fix = rzp.diagnose(_err("Internal Server Error", status=500))
+    assert "Razorpay" in cause
+    assert "nothing wrong on your side" in fix.lower()
+
+
+def test_unknown_failures_return_empty_rather_than_guessing():
+    """Better to show Razorpay's own words than invent a wrong diagnosis."""
+    cause, fix = rzp.diagnose(_err("something nobody predicted", status=418))
+    assert cause == "" and fix == ""
+
+
+def test_error_payload_carries_cause_and_fix_alongside_the_raw_message():
+    payload = rzp.error_payload(_err("Authentication failed", status=401))
+    assert payload["error"] == "Authentication failed"
+    assert payload["status"] == 401
+    assert payload["cause"] and payload["fix"]
+
+
+def test_error_payload_never_omits_the_original_message():
+    payload = rzp.error_payload(_err("some unmapped thing", status=418))
+    assert payload["error"] == "some unmapped thing"
+    assert payload["cause"] == ""
+
+
+def test_a_cut_tls_connection_is_distinguished_from_a_certificate_problem():
+    """Observed in the wild: 'TLS/SSL connection has been closed (EOF)'.
+    That is interception, not a missing CA bundle — different fix entirely."""
+    cut_cause, cut_fix = rzp.diagnose(_err(
+        "could not reach Razorpay at https://api.razorpay.com/v1: "
+        "TLS/SSL connection has been closed (EOF) (_ssl.c:992)"))
+    cert_cause, _ = rzp.diagnose(_err("[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed"))
+
+    assert cut_cause != cert_cause
+    assert "cut" in cut_cause.lower() or "interfer" in cut_fix.lower()
+    assert "firewall" in cut_fix.lower()
+
+
+def test_tls_handshake_variants_are_all_recognised():
+    for message in ("SSL: WRONG_VERSION_NUMBER", "EOF occurred in violation of protocol",
+                    "handshake failure"):
+        cause, _ = rzp.diagnose(_err(f"could not reach Razorpay: {message}"))
+        assert cause, message
+
+
+def test_certificate_diagnosis_still_wins_over_the_generic_tls_one():
+    """Ordering matters: the cert message also contains 'SSL'."""
+    cause, fix = rzp.diagnose(_err("[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed"))
+    assert "certificates" in cause.lower()
+    assert "Install Certificates" in fix

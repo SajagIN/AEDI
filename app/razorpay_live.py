@@ -225,6 +225,96 @@ def verify_webhook_signature(body_bytes, signature, secret):
     return hmac.compare_digest(digest, signature)
 
 
+# ── diagnosis ─────────────────────────────────────────────────────────────
+#
+# "502 Bad Gateway" tells an operator nothing. Every failure mode below has a
+# different fix, and the operator is usually on their own machine where no
+# amount of server logging helps them. So each one gets named, with the fix.
+
+_DIAGNOSES = (
+    # (predicate over (status, code, message_lower), short cause, what to do)
+    (lambda s, c, m: "certificate_verify_failed" in m or "certificate verify failed" in m,
+     "Your Python cannot verify HTTPS certificates.",
+     "This is a local Python install problem, not a Razorpay one. On macOS run "
+     "'/Applications/Python 3.x/Install Certificates.command'. On Linux install "
+     "or update the ca-certificates package. Nothing about your keys is wrong."),
+
+    (lambda s, c, m: any(x in m for x in (
+        "ssl", "tls", "handshake", "wrong_version_number", "eof occurred")),
+     "The HTTPS connection to Razorpay was cut before it completed.",
+     "Something between you and Razorpay is interfering — usually a corporate or "
+     "campus firewall, an antivirus that inspects HTTPS, or a captive-portal wifi "
+     "you have not signed into. Check with 'curl -sSv https://api.razorpay.com "
+     "-o /dev/null'. A phone hotspot is the fastest way to confirm it is the "
+     "network and not your keys."),
+
+    (lambda s, c, m: any(x in m for x in (
+        "name or service not known", "nodename nor servname", "temporary failure in name",
+        "getaddrinfo")),
+     "DNS cannot resolve api.razorpay.com.",
+     "The machine is offline, or a VPN/proxy is intercepting DNS. Check with "
+     "'curl -I https://api.razorpay.com'."),
+
+    (lambda s, c, m: any(x in m for x in ("connection refused", "timed out", "timeout",
+                                          "network is unreachable", "no route to host")),
+     "Network route to Razorpay is blocked.",
+     "Usually a corporate/college firewall or a proxy that needs configuring. "
+     "Try a phone hotspot to confirm, then set HTTPS_PROXY if you need the proxy."),
+
+    (lambda s, c, m: s == 401 or "authentication failed" in m,
+     "Razorpay rejected the key id / secret pair.",
+     "Most often the secret belongs to a different key id, or one of the two was "
+     "pasted with a character missing. Regenerate both together in Dashboard -> "
+     "Settings -> API Keys with the toggle on Test, and paste both fresh. The "
+     "secret is shown only once at creation — if you no longer have it, generate "
+     "a new pair rather than guessing."),
+
+    (lambda s, c, m: s == 403,
+     "The key is valid but not allowed to do this.",
+     "The Razorpay account may not have completed signup, or this API is not "
+     "enabled on it. Open the Razorpay dashboard and finish any pending steps."),
+
+    (lambda s, c, m: s == 400 and "amount" in m,
+     "Razorpay rejected the amount.",
+     "Minimum is INR 1.00. Amounts are sent in paise."),
+
+    (lambda s, c, m: s == 429,
+     "Rate limited by Razorpay.",
+     "Wait a few seconds and retry."),
+
+    (lambda s, c, m: s is not None and s >= 500,
+     "Razorpay's own API returned an error.",
+     "Nothing wrong on your side. Check https://status.razorpay.com and retry."),
+)
+
+
+def diagnose(exc):
+    """Turn a RazorpayError into (cause, fix) in plain language.
+
+    Returns ("", "") when the failure is not one of the known shapes, so the
+    caller falls back to Razorpay's own description rather than inventing one.
+    """
+    status = getattr(exc, "status", None)
+    code = getattr(exc, "code", None) or ""
+    message = str(getattr(exc, "message", exc) or "").lower()
+    for predicate, cause, fix in _DIAGNOSES:
+        try:
+            if predicate(status, code, message):
+                return cause, fix
+        except Exception:
+            continue
+    return "", ""
+
+
+def error_payload(exc):
+    """The JSON body returned to the console for any Razorpay failure."""
+    cause, fix = diagnose(exc)
+    payload = exc.as_dict()
+    payload["cause"] = cause
+    payload["fix"] = fix
+    return payload
+
+
 # ── mapping a Razorpay payment onto an AEDI case ──────────────────────────
 
 # Descriptions are the same phrasings the dataset uses, so a live case reads

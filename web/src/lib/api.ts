@@ -104,6 +104,15 @@ export type RzpStatus = {
   reachable: boolean | null;
   reach_detail: string | null;
   real_disputes: number | null;
+  cause?: string;
+  fix?: string;
+};
+
+/* Every Razorpay failure comes back shaped like this — `cause` and `fix` are
+   plain-language, so the UI never has to render a bare 502 at the user. */
+export type RzpFailure = {
+  error: string; status: number | null; code: string | null;
+  cause?: string; fix?: string;
 };
 
 export type RzpMerchant = {
@@ -152,9 +161,13 @@ const post = (url: string, body: unknown) =>
 export const rzpStatus = (probe = false) =>
   j(`/api/rzp/status${probe ? "?probe=1" : ""}`) as Promise<RzpStatus>;
 export const rzpReference = () => j("/api/rzp/reference") as Promise<RzpReference>;
-export const rzpPayments = () => j("/api/rzp/payments") as Promise<{ payments: RzpPayment[] }>;
+export const rzpPayments = () =>
+  j("/api/rzp/payments") as Promise<{ payments: RzpPayment[] } & Partial<RzpFailure>>;
 export const rzpDisputes = () =>
-  j("/api/rzp/disputes") as Promise<{ disputes: RzpDispute[]; decisions: Record<string, any>; note: string }>;
+  j("/api/rzp/disputes") as Promise<{
+    disputes: RzpDispute[]; decisions: Record<string, any>; note: string;
+    fetch_error: RzpFailure | null;
+  }>;
 export const rzpEvents = (after: number) =>
   j(`/api/rzp/events?after=${after}`) as Promise<{ events: RzpEvent[] }>;
 
