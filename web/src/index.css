@@ -181,6 +181,11 @@
     -webkit-backdrop-filter: saturate(180%) blur(20px);
   }
 
+  /* Scrollable, without the track. For strips like the tab row that must
+     still pan on a phone but must not draw a bar across a desktop masthead. */
+  .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; height: 0; width: 0; }
+
   .grid-hair {
     background-image:
       linear-gradient(hsl(var(--border)) 1px, transparent 1px),

@@ -77,7 +77,7 @@ export default function App() {
             </div>
           </div>
 
-          <TabsList className="w-full justify-start overflow-x-auto border-b-0">
+          <TabsList className="no-scrollbar w-full justify-start overflow-x-auto border-b-0">
             {TABS.map((t, i) => (
               <TabsTrigger key={t.v} value={t.v} className="reveal group" style={{ "--i": i } as React.CSSProperties}>
                 <span className="mr-2 text-[9px] text-muted-foreground/40 transition-colors group-data-[state=active]:text-cobalt/60">

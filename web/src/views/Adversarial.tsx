@@ -33,7 +33,8 @@ export default function Adversarial({ health }: { health: Health }) {
             <CardTitle>Defense-only posture</CardTitle>
           </div>
           <CardDescription>
-            Fixed public patterns as regression tests. No novel attack generation.
+            We only test attacks that are already public, and only against ourselves.
+            Nothing new is invented here.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -41,10 +42,10 @@ export default function Adversarial({ health }: { health: Health }) {
       {s && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { l: "Defense rate", v: pct(s.defense_rate), h: `${s.n_attacks}/${s.n_attacks} attacks flagged`, c: "green" },
-            { l: "Control false positives", v: pct(s.control_false_positive_rate), h: `0/${s.n_controls} benign wrongly flagged`, c: "green" },
-            { l: "Attack fixtures", v: String(s.n_attacks), h: "publicly-documented categories", c: "" },
-            { l: "Benign controls", v: String(s.n_controls), h: "same vocabulary, no instruction", c: "" },
+            { l: "Attacks caught", v: pct(s.defense_rate), h: `${s.n_attacks} of ${s.n_attacks} trick messages spotted`, c: "green" },
+            { l: "Honest ones misjudged", v: pct(s.control_false_positive_rate), h: `0 of ${s.n_controls} normal messages wrongly accused`, c: "green" },
+            { l: "Trick messages", v: String(s.n_attacks), h: "known, published attack wordings", c: "" },
+            { l: "Honest messages", v: String(s.n_controls), h: "same words, no hidden order — must NOT be flagged", c: "" },
           ].map((x) => (
             <Card key={x.l}>
               <CardContent className="p-5">
@@ -62,8 +63,8 @@ export default function Adversarial({ health }: { health: Health }) {
         <CardHeader>
           <CardTitle>Injection playground</CardTitle>
           <CardDescription>
-            One neutral case, correct answer <b className="font-medium text-signal-good">contest</b>.
-            The narrative is the only variable.
+            Same case every time, right answer <b className="font-medium text-signal-good">contest</b>.
+            Only the shop&rsquo;s written story changes — so if the decision moves, the words moved it.
           </CardDescription>
         </CardHeader>
         <CardContent>
