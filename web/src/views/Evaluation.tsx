@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getMetrics, inr, nice, pct, type Health, type Metrics } from "@/lib/api";
 import { PipelineRail } from "@/components/pipeline-rail";
@@ -43,7 +42,7 @@ const COLUMNS = [
   { key: "auto", head: "Decided on its own", term: "coverage",
     help: "Closed without a human. Cheap, but only safe on a case that could be closed." },
   { key: "wrong", head: "Wrong answers", term: "false positive + false negative",
-    help: "Fought one we owed, or paid one we would have won. Every system here scores zero, which is why this column settles nothing." },
+    help: "Fought one we owed, or paid one we would have won. Every system scores zero here, and that is close to guaranteed by construction: the ground-truth rule picks contest over accept_liability purely on evidence sufficiency, which the pipeline computes in code and then pins onto the model's answer. Getting this pair wrong is nearly impossible, so the column settles nothing." },
   { key: "bypassed", head: "Decided one it should have escalated", term: "bypassed review",
     help: "The correct answer was 'a person should look at this' and the system answered anyway. It is not scored as an error, so it is priced separately — and it is the only column that tells these three apart." },
   { key: "priced", head: "Cost per 100", term: "cost_per_100_inr",
@@ -285,92 +284,6 @@ export default function Evaluation({ health, split, setSplit }:
 
       <PipelineRail />
 
-      {agent && (
-        <Accordion type="single" collapsible className="border-t border-border">
-          <AccordionItem value="matrix">
-            <AccordionTrigger>Every case, sorted by what it was and what AEDI said</AccordionTrigger>
-            <AccordionContent>
-              <div className="grid gap-8 lg:grid-cols-[minmax(300px,420px)_1fr]">
-                <div>
-                  <table className="w-full border-separate border-spacing-1">
-                    <thead>
-                      <tr>
-                        <th />
-                        {m!.decision_values.map((p) => (
-                          <th key={p} className="pb-1 text-[10.5px] font-medium uppercase tracking-[.06em] text-muted-foreground">
-                            {nice(p)}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {m!.decision_values.map((a) => (
-                        <tr key={a}>
-                          <th className="pr-2.5 text-right font-mono text-[11px] font-normal text-muted-foreground">{nice(a)}</th>
-                          {m!.decision_values.map((p) => {
-                            const v = agent.matrix[a][p];
-                            const diag = a === p;
-                            const err = !diag && v > 0 && a !== "manual_review";
-                            return (
-                              <td key={p} className={`rounded-lg border py-3 text-center font-mono text-[14px] tabular-nums ${
-                                diag && v > 0 ? "border-signal-good/35 bg-signal-good/[.08] text-signal-good"
-                                : err ? "border-signal-bad/30 bg-signal-bad/[.06] text-signal-bad"
-                                : v === 0 ? "border-border bg-secondary/40 text-muted-foreground/40"
-                                : "border-border bg-secondary/60"}`}>{v}</td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  <p className="mt-3 text-[11.5px] leading-relaxed text-muted-foreground">
-                    Down the side: what the case actually was. Across the top: what AEDI said.
-                    The diagonal is agreement — everything off it is a disagreement.
-                  </p>
-                </div>
-
-                <dl className="space-y-2.5 self-start">
-                  {["contest", "accept_liability"].flatMap((cls) => {
-                    const pr = agent.precision_recall[cls];
-                    return [
-                      [`${nice(cls)} precision`, pct(pr.precision), "of the ones it said, how many were right"],
-                      [`${nice(cls)} recall`, pct(pr.recall), "of the ones it should have said, how many it caught"],
-                    ];
-                  }).map(([l, v, note]) => (
-                    <div key={l} className="flex items-baseline gap-2">
-                      <dt className="text-[12.5px] text-muted-foreground">{l}</dt>
-                      <span className="leader h-3 flex-1" />
-                      <dd className="font-mono text-[12.5px] tabular-nums text-foreground">{v}</dd>
-                      <span className="hidden text-[10.5px] text-muted-foreground/55 xl:inline">{note}</span>
-                    </div>
-                  ))}
-                </dl>
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-
-          <AccordionItem value="cost">
-            <AccordionTrigger>What each mistake is priced at</AccordionTrigger>
-            <AccordionContent>
-              <dl className="grid max-w-[70ch] gap-x-8 gap-y-3 sm:grid-cols-2">
-                {[
-                  ["Fought one we owed", inr(m!.cost_model.false_positive_inr), "wasted paperwork"],
-                  ["Paid one we'd have won", "the transaction", "read per case"],
-                  ["Sent to a person", inr(m!.cost_model.manual_review_inr), "analyst time"],
-                  ["Skipped a needed review", pct(m!.cost_model.bypassed_exposure_rate), "of amount, counted apart"],
-                ].map(([k, v, note]) => (
-                  <div key={k} className="flex items-baseline gap-2">
-                    <dt className="text-[12.5px] text-muted-foreground">{k}</dt>
-                    <span className="leader h-3 flex-1" />
-                    <dd className="font-mono text-[12px] text-foreground">{v}</dd>
-                    <span className="text-[10.5px] text-muted-foreground/55">{note}</span>
-                  </div>
-                ))}
-              </dl>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
-      )}
     </div>
   );
 }
