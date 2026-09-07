@@ -1,7 +1,7 @@
 """
 Regression tests for the wall-clock deadline on live (LIVE mode) agent calls.
 
-The bug this pins: on a NVIDIA account whose output-tokens-per-minute limit sits
+The bug this pins: on an account whose per-minute limit sits
 below one request's worth of output, the agent legitimately needs to wait out a
 minute per call. In the batch runner that is correct. Behind a browser request
 it is not: the operator clicks "run the pipeline", the request never returns,
