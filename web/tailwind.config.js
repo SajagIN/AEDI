@@ -34,6 +34,9 @@ export default {
         // Model-authored prose, set in italic. It had the wordmark too until
         // a Didone turned out to look spindly at masthead size.
         quote: ['"Bodoni Moda"', 'Georgia', 'serif'],
+        // The hero's second line, and nowhere else. A script face has one job
+        // in an interface like this and stops working the moment it has two.
+        script: ['Lobster', 'cursive'],
       },
       colors: {
         border: "hsl(var(--border))", input: "hsl(var(--input))", ring: "hsl(var(--ring))",

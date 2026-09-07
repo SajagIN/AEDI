@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { motion, useReducedMotion } from "motion/react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
@@ -29,6 +30,7 @@ export default function CaseExplorer({ health, split, setSplit }:
   const [busy, setBusy] = useState(false);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<string>("all");
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
     setSel(null); setDetail(null); setRun(null); setLoading(true);
@@ -71,12 +73,23 @@ export default function CaseExplorer({ health, split, setSplit }:
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search case, merchant, reason code…"
             className="w-[280px] pl-9" />
         </div>
-        <div className="nm-inset inline-flex rounded-lg p-1">
+        {/* Same one-chip-that-travels as the tab strip. This group is where
+            the idiom started, so it would be odd for it to be the one place
+            that still swaps a static highlight. */}
+        <div className="nm-inset inline-flex rounded-full p-1.5">
           {FILTERS.map((f) => (
             <button key={f.id} onClick={() => setFilter(f.id)}
               aria-pressed={filter === f.id}
-              className={`rounded-md px-3 py-1.5 font-mono text-[10.5px] uppercase tracking-[.11em] transition-shadow ${filter === f.id ? "nm-raised-sm text-cobalt" : "text-muted-foreground hover:text-foreground"}`}>
-              {f.label}
+              className={`relative rounded-full px-3.5 py-1.5 font-mono text-[10.5px] uppercase tracking-[.11em] transition-colors ${filter === f.id ? "text-cobalt" : "text-muted-foreground hover:text-foreground"}`}>
+              {filter === f.id && (
+                <motion.span
+                  layoutId="filter-chip"
+                  aria-hidden
+                  className="nm-raised-sm absolute inset-0 rounded-full"
+                  transition={reducedMotion ? { duration: 0 } : { type: "spring", stiffness: 420, damping: 38, mass: 0.8 }}
+                />
+              )}
+              <span className="relative z-10">{f.label}</span>
             </button>
           ))}
         </div>

@@ -97,13 +97,15 @@ export default function Overview({ split }: { split: string }) {
           {/* One line, always. Twenty-three characters against the twelve
               above them, so at equal size this line would run half again as
               wide as the container — the size is set to match the two lines by
-              WIDTH — the string measures 10.417em in Bodoni Moda italic, read
-              off the shipped font file, so container/10.417 is the size that
-              makes both lines end at the same place. The calc reproduces that
-              at every viewport instead of guessing at breakpoints. Weight
+              WIDTH — the string measures 9.387em in Lobster, read off the
+              shipped font file, so container/9.387 is the size that makes both
+              lines end at the same place. The calc reproduces that at every
+              viewport instead of guessing at breakpoints. No italic and no
+              bold here: Lobster ships one cut, and asking a browser to fake
+              either on a script face wrecks the connecting strokes. Weight
               600 because a Didone at 400 is mostly hairline, and hairlines at
               display size look like a rendering fault. */}
-          <span aria-hidden className="mt-3 block whitespace-nowrap font-quote text-[clamp(20px,calc(9.6vw_-_4.6px),78px)] font-semibold italic leading-[1.05] text-cobalt">
+          <span aria-hidden className="mt-3 block whitespace-nowrap font-script text-[clamp(20px,calc(10.65vw_-_5.11px),87px)] leading-[1.15] text-cobalt">
             answered with evidence.
           </span>
         </h1>

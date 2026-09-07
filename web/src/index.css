@@ -74,6 +74,13 @@
   font-family: "Bodoni Moda"; font-style: normal; font-display: swap; font-weight: 400 900;
   src: url("../node_modules/@fontsource-variable/bodoni-moda/files/bodoni-moda-latin-opsz-normal.woff2") format("woff2-variations");
 }
+/* Lobster is a single 400 cut with no italic and no bold. Nothing may ask it
+   for either — a synthesised oblique on a script face slants the connecting
+   strokes off their baseline and a synthesised bold fills in the loops. */
+@font-face {
+  font-family: "Lobster"; font-style: normal; font-display: swap; font-weight: 400;
+  src: url("../node_modules/@fontsource/lobster/files/lobster-latin-400-normal.woff2") format("woff2");
+}
 @font-face {
   font-family: "Bodoni Moda"; font-style: italic; font-display: swap; font-weight: 400 900;
   src: url("../node_modules/@fontsource-variable/bodoni-moda/files/bodoni-moda-latin-opsz-italic.woff2") format("woff2-variations");
