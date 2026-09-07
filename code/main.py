@@ -26,7 +26,7 @@ already seen.
 Usage:
     python code/main.py [--dataset-dir dataset] [--output dataset/output.csv]
 
-Requires: at least GROQ_API_KEY in .env or environment (GROQ_API_KEY_2, _3, ... optional)
+Requires: at least NVIDIA_API_KEY in .env or environment (NVIDIA_API_KEY_2, _3, ... optional)
 """
 
 import argparse
@@ -39,7 +39,7 @@ import time
 from pathlib import Path
 
 from dotenv import load_dotenv
-from groq import Groq
+from openai import OpenAI
 
 from llm_cache import ResponseCache
 import risk_signals
@@ -49,7 +49,12 @@ load_dotenv()
 REPO_ROOT = Path(__file__).parent.parent
 # Overridable so a low free-tier output-per-minute ceiling can be worked
 # around without editing code: AEDI_MODEL=llama-3.3-70b-versatile, etc.
-MODEL = os.environ.get("AEDI_MODEL", "").strip() or "qwen/qwen3.6-27b"
+MODEL = os.environ.get("AEDI_MODEL", "").strip() or "meta/llama-3.3-70b-instruct"
+
+# NVIDIA NIM speaks the OpenAI Chat Completions dialect, so the official openai
+# SDK drives it unchanged — only the base URL and the key move. Overridable for
+# a self-hosted NIM container, which serves the same API on localhost:8000/v1.
+NIM_BASE_URL = os.environ.get("AEDI_BASE_URL", "").strip() or "https://integrate.api.nvidia.com/v1"
 
 # ── Allowed value sets ────────────────────────────────────────────────────
 # `manual_review` is an abstention, not a class with its own precision/recall
@@ -201,28 +206,30 @@ Return JSON only — no markdown fences, no extra keys."""
 
 
 class KeyPool:
-    """Round-robins across every GROQ_API_KEY / GROQ_API_KEY_2 / GROQ_API_KEY_3 ... found
-    in the environment, spreading per-minute rate-limit load across all of them instead of
-    hammering one key. Does NOT multiply the daily token cap by itself — Groq's daily quota
-    is per ACCOUNT, so multiple keys generated from the same account share one pool
-    (confirmed directly from the API: same-account keys show the identical `organization`
-    ID when rate-limited). Real daily-cap headroom only comes from keys on
-    genuinely separate accounts. Ported as-is from the August Orchestrate build — generic,
-    no domain coupling."""
+    """Round-robins across every NVIDIA_API_KEY / NVIDIA_API_KEY_2 / ... found in the
+    environment, spreading per-minute rate-limit load across all of them instead of
+    hammering one key.
+
+    NVIDIA's free tier meters requests per minute against the account, so extra keys
+    minted from the SAME account share one allowance and buy nothing. Real headroom
+    only comes from keys on genuinely separate accounts — the same conclusion that
+    held for the previous provider, for the same reason: the limit is attached to the
+    account, not the credential. Ported as-is from the August Orchestrate build —
+    generic, no domain coupling."""
 
     def __init__(self):
         keys = []
         for name, value in os.environ.items():
-            if re.fullmatch(r"GROQ_API_KEY(_\d+)?", name) and value:
+            if re.fullmatch(r"NVIDIA_API_KEY(_\d+)?", name) and value:
                 keys.append((name, value))
         if not keys:
-            sys.exit("Error: no GROQ_API_KEY* found. Get a free key at https://console.groq.com")
+            sys.exit("Error: no NVIDIA_API_KEY* found. Get a free key at https://build.nvidia.com")
         keys.sort(key=lambda kv: kv[0])
         self.names = [k for k, _ in keys]
-        self.clients = [Groq(api_key=v) for _, v in keys]
+        self.clients = [OpenAI(api_key=v, base_url=NIM_BASE_URL) for _, v in keys]
         self._i = 0
         self._dead_until: dict = {}  # name -> unix ts when it's worth retrying
-        print(f"Key pool: {len(self.clients)} Groq key(s) - {', '.join(self.names)}")
+        print(f"Key pool: {len(self.clients)} NVIDIA NIM key(s) - {', '.join(self.names)}")
 
     def next(self):
         now = time.time()
@@ -420,7 +427,7 @@ def build_messages(row: dict, ctx: dict) -> list:
 
 
 # ── Output-token budget, adaptive ─────────────────────────────────────────
-# Groq's free tier enforces an output-tokens-per-minute (OTPM) ceiling that can
+# NVIDIA NIM's free tier enforces an output-tokens-per-minute (OTPM) ceiling that can
 # be LOWER than the per-request max_tokens this pipeline would otherwise ask
 # for. When that happens the API rejects the call with a 429 *before generating
 # anything*, and — unlike an ordinary rate limit — waiting does not help: an
@@ -494,7 +501,7 @@ def note_output_token_limit(err: str) -> bool:
               f"output tokens and is now capped at {new}. Long reasons may be truncated, and "
               f"this account can place roughly one call per minute. For an interactive demo "
               f"consider a model with a higher free-tier OTPM via AEDI_MODEL, or raise the "
-              f"limit at https://console.groq.com/settings/billing.", file=sys.stderr)
+              f"limit at https://build.nvidia.com.", file=sys.stderr)
     return True
 
 
@@ -503,56 +510,17 @@ def is_output_token_limit(err: str) -> bool:
     return bool(_OTPM_RE.search(err))
 
 
-# ── Reasoning budget ──────────────────────────────────────────────────────
-# The default model is a reasoning model. On Groq, the output-token budget is
-# spent on thinking AND on speaking: reasoning_format="hidden" strips the
-# thinking from the response but the tokens are still generated and still
-# billed against the same ceiling. So on an account whose OTPM ceiling is small,
-# the model can spend the entire budget thinking and emit nothing at all.
+# ── Empty completions ─────────────────────────────────────────────────────
+# A model can return a 200 with no content and no tool call. The previous
+# provider made this common: its default was a reasoning model billing thought
+# and speech against one ceiling, so a small ceiling meant the budget was spent
+# before it said anything, and the failure arrived disguised as a schema error.
 #
-# That failure does not arrive as a truncation warning. It arrives as
-#     400 tool_use_failed ... 'failed_generation': ''
-# which reads like a malformed prompt and is nothing of the sort. Observed on a
-# 1000-OTPM account: three forced-classification retries, each one appending a
-# nudge to the prompt, all failing identically, then a fallback row.
-#
-# Reasoning is a luxury the budget has to afford. When it cannot, turn it off
-# and spend every available token on the answer — a structured classification
-# with a required tool call degrades far less from losing hidden reasoning than
-# it does from being cut off mid-sentence. Groq's qwen3 models accept exactly
-# two values here, "none" and "default"; anything else is a 400.
-REASONING_MIN_BUDGET = 2000
-_REASONING_EFFORT_ENV = os.environ.get("AEDI_REASONING_EFFORT", "").strip().lower()
-_reasoning_disabled_announced = False
-
-
-def reasoning_effort_for(budget: int):
-    """The reasoning_effort to send for a request allowed `budget` output
-    tokens, or None to leave the parameter off entirely (the model default).
-
-    The trigger is the account's discovered ceiling, NOT this round's ask. The
-    first round deliberately asks for only ROUND_MAX_TOKENS, and that modest
-    number is a choice, not a constraint — treating it as one would disable
-    reasoning on healthy accounts too and quietly change the behaviour the
-    committed metrics were measured under.
-
-    An explicit AEDI_REASONING_EFFORT always wins — including "default", which
-    is how you force reasoning back on for a squeezed account and see for
-    yourself what it costs.
-    """
-    global _reasoning_disabled_announced
-    if _REASONING_EFFORT_ENV:
-        return _REASONING_EFFORT_ENV
-    ceiling = _OUTPUT_TOKEN_CEILING
-    if ceiling is None or ceiling >= REASONING_MIN_BUDGET:
-        return None
-    if not _reasoning_disabled_announced:
-        _reasoning_disabled_announced = True
-        print(f"  This account caps output at {ceiling} tokens/request, below the "
-              f"{REASONING_MIN_BUDGET} a reasoning model needs to think and still answer — "
-              f"sending reasoning_effort=none so the whole budget goes to the answer. "
-              f"Set AEDI_REASONING_EFFORT=default to override.", file=sys.stderr)
-    return "none"
+# NVIDIA NIM does not meter output tokens per minute, so the usual cause is
+# gone — but an empty completion is still possible, and it is still unfixable
+# by re-sending a longer prompt. The recovery path asks the model to skip
+# thinking and spend everything on the answer, then gives up rather than
+# looping.
 
 
 class OutputBudgetTooSmall(RuntimeError):
@@ -567,7 +535,7 @@ _TOOL_USE_FAILED_RE = re.compile(r"tool_use_failed", re.I)
 def is_starved_tool_call(err: str) -> bool:
     """True for a tool_use_failed whose failed_generation is empty.
 
-    Groq reports two different things through tool_use_failed. If
+    NVIDIA NIM reports two different things through tool_use_failed. If
     failed_generation carries text, the model answered and the answer merely
     failed the tool schema — recoverable, and _recover_failed_generation does
     exactly that. If it is empty, the model emitted nothing, which on a
@@ -739,7 +707,7 @@ def _execute_tool(name: str, ctx: dict) -> dict:
 
 
 def _normalize_response(response) -> dict:
-    """Normalizes a Groq SDK response into a plain dict of {content,
+    """Normalizes an OpenAI-dialect response into a plain dict of {content,
     tool_calls}, so the rest of the pipeline (and the cache) never touches
     the SDK's response objects directly."""
     msg = response.choices[0].message
@@ -789,12 +757,12 @@ def _call_llm(pool: KeyPool, cache: ResponseCache, **kwargs) -> tuple:
 
 
 def _recover_failed_generation(exc: Exception):
-    """Groq's forced-tool_choice path sometimes rejects a call with 400
+    """NVIDIA NIM's forced-tool_choice path sometimes rejects a call with 400
     tool_use_failed even though the model produced a complete, correctly
     shaped JSON answer as plain text — visible in the error body's
     failed_generation field. Recovers that answer instead of discarding a
     real result and burning a retry. Unwraps LLMCallError first since
-    the original Groq exception (with its .body attribute) is what
+    the original NVIDIA NIM exception (with its .body attribute) is what
     actually carries this, not the wrapper."""
     original = exc.original if isinstance(exc, LLMCallError) else exc
     body = getattr(original, "body", None)
@@ -858,14 +826,18 @@ def _run_agent_turn(pool: KeyPool, cache: ResponseCache, base_messages: list, ct
         for local_attempt in range(local_attempts):
             budget = output_token_budget(CLASSIFY_MAX_TOKENS if force_classify else ROUND_MAX_TOKENS)
             kwargs = dict(model=MODEL, messages=messages, temperature=0.1,
-                          # max_completion_tokens, not max_tokens: on a reasoning
-                          # model this budget covers thinking and answer together,
-                          # and Groq documents max_tokens as deprecated for them.
-                          max_completion_tokens=budget,
-                          extra_body={"reasoning_format": "hidden"})
-            effort = "none" if force_no_reasoning else reasoning_effort_for(budget)
-            if effort:
-                kwargs["reasoning_effort"] = effort
+                          # Plain max_tokens: NIM serves the OpenAI Chat Completions
+                          # dialect, where this is the output ceiling and nothing else.
+                          # The previous provider needed max_completion_tokens plus a
+                          # reasoning_format switch because its default model spent the
+                          # same budget thinking and speaking; that whole workaround is
+                          # gone with it.
+                          max_tokens=budget)
+            if force_no_reasoning:
+                # Only reached after an empty completion. Models on NIM that expose a
+                # thinking mode take it here; ones that do not ignore an unknown key,
+                # so this is safe to send unconditionally on the recovery path.
+                kwargs["extra_body"] = {"chat_template_kwargs": {"thinking": False}}
             if force_classify:
                 kwargs["tools"] = [CLASSIFY_CHARGEBACK_TOOL]
                 kwargs["tool_choice"] = {"type": "function", "function": {"name": "classify_chargeback"}}

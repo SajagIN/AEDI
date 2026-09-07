@@ -207,11 +207,11 @@ def main():
         warn("No RAZORPAY_WEBHOOK_SECRET",
              "optional — without it, no genuine dispute can reach the console")
 
-    if not os.getenv("GROQ_API_KEY"):
-        warn("No GROQ_API_KEY",
+    if not os.getenv("NVIDIA_API_KEY"):
+        warn("No NVIDIA_API_KEY",
              "the Live tab will compute real signals but refuse to decide")
     else:
-        ok("GROQ_API_KEY present", "the Live tab can run the full pipeline")
+        ok("NVIDIA_API_KEY present", "the Live tab can run the full pipeline")
 
     return report()
 

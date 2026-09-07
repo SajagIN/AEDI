@@ -20,7 +20,7 @@ Checklist:
 
 - [ ] Browser full screen. Zoom **125%** — judge door se dekhega.
 - [ ] Console **Overview** tab par khula ho.
-- [ ] `.env` mein `GROQ_API_KEY` daala ho.
+- [ ] `.env` mein `NVIDIA_API_KEY` daala ho.
       **Agar nahi daala** to "Run live" button aur injection playground kaam nahi karenge.
       Sirf "Replay committed decision" chalega. Neeche Part 3 aur 4 mein bataya hai
       us case mein kya bolna hai.
@@ -123,7 +123,7 @@ button dabao. Trace ek ek line karke aayega — usko aane do, beech mein mat bol
 > jawab galat tha. Main khud dikha raha hoon. Kyunki jo apni galti chhupata hai,
 > uske sahi numbers par bhi shak hota hai.
 
-**Agar `GROQ_API_KEY` nahi hai:** "Run live" button kaam nahi karega. Bas itna bol do —
+**Agar `NVIDIA_API_KEY` nahi hai:** "Run live" button kaam nahi karega. Bas itna bol do —
 > Abhi ye pehle se chala hua jawab dikha raha hai. Key lagau to model live chalta hai,
 > par ye wahi code hai, koi alag raasta nahi.
 
@@ -154,7 +154,7 @@ button dabao. Trace ek ek line karke aayega — usko aane do, beech mein mat bol
 
 **Karo:** **"Run against the pipeline"** dabao. Result box hara ya laal aayega.
 
-**Agar `GROQ_API_KEY` nahi hai:** ye kaam nahi karega, error aayega. Tab ye bolo —
+**Agar `NVIDIA_API_KEY` nahi hai:** ye kaam nahi karega, error aayega. Tab ye bolo —
 > Iske liye model chahiye, kyunki naya text model hi padh sakta hai. Aur hum
 > jaanbujh kar yahan koi banaya hua jawab nahi dikhate — wo dhokha hoga.
 > Neeche jo 24 attack rakhe hain wo asli hain, aap padh sakte hain.

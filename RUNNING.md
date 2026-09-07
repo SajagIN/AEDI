@@ -48,8 +48,8 @@ It starts in one of two modes, detected automatically:
 
 | Mode | When | What you get |
 |---|---|---|
-| **REPLAY** | no `GROQ_API_KEY` | Everything except a live model call: every deterministic signal computed on the fly, the full evaluation harness, the committed predictions, the adversarial fixture catalogue. No network access at all. |
-| **LIVE** | `GROQ_API_KEY` in `.env` | The above, plus a **Run live** button that calls the real bounded agent loop for a single case through the disk cache. |
+| **REPLAY** | no `NVIDIA_API_KEY` | Everything except a live model call: every deterministic signal computed on the fly, the full evaluation harness, the committed predictions, the adversarial fixture catalogue. No network access at all. |
+| **LIVE** | `NVIDIA_API_KEY` in `.env` | The above, plus a **Run live** button that calls the real bounded agent loop for a single case through the disk cache. |
 
 Five tabs:
 
@@ -205,7 +205,7 @@ accept_liability 75%/71%, coverage 76%, INR 3,600 per 100 cases.
 ### Run the agent over a whole split (needs an API key)
 
 ```bash
-cp .env.example .env       # then put a real GROQ_API_KEY in it
+cp .env.example .env       # then put a real NVIDIA_API_KEY in it
 python code/main.py --input dataset/dev/cases.csv --output dataset/dev/output.csv
 python code/evaluation/main.py --split dev --predictions dataset/dev/output.csv
 ```
@@ -232,14 +232,14 @@ delete `.run_suite.lock` and retry.
 
 ## 4. Getting an API key
 
-A free key from [console.groq.com](https://console.groq.com) is enough. Put it
+A free key from [build.nvidia.com](https://build.nvidia.com) is enough. Put it
 in `.env` — `cp .env.example .env` first; that file already ships the
 correctly-named placeholder, so you only replace its value.
 
 The free tier's daily token cap is enforced **per account**, not per key — extra
 keys generated from the same account share one pool and only help spread
-per-minute limits. `KeyPool` will round-robin across `GROQ_API_KEY`,
-`GROQ_API_KEY_2`, `GROQ_API_KEY_3`, … if you have keys from separate accounts.
+per-minute limits. `KeyPool` will round-robin across `NVIDIA_API_KEY`,
+`NVIDIA_API_KEY_2`, `NVIDIA_API_KEY_3`, … if you have keys from separate accounts.
 
 Never commit `.env`. Install the guard once per clone:
 
@@ -254,7 +254,7 @@ chmod +x .git/hooks/pre-commit
 
 | Symptom | Cause / fix |
 |---|---|
-| `Error: no GROQ_API_KEY* found` | Only the live agent needs a key. The tests, the web console in REPLAY mode, and held-out scoring all run without one. |
+| `Error: no NVIDIA_API_KEY* found` | Only the live agent needs a key. The tests, the web console in REPLAY mode, and held-out scoring all run without one. |
 | `FileNotFoundError: dataset/dev/output.csv` | That file isn't committed. Generate it with `python code/main.py --input dataset/dev/cases.csv --output dataset/dev/output.csv`, or score `held_out` instead. |
 | Overview shows `Auto-decided 0` and `₹0` saved | The selected split has an incomplete run. The banner names it — finish the run, or switch to `held_out`, which ships complete. |
 | Numbers look wrong right after running `code/main.py` | If the run stopped early, `output.csv` holds only the cases it reached. That is not a random sample, so the console declines to project from it. Re-run the same command; it resumes from cache. |
@@ -263,9 +263,9 @@ chmod +x .git/hooks/pre-commit
 | `ModuleNotFoundError: flask` | `pip install -r app/requirements.txt` — the web console's dependency, not the pipeline's. |
 | `429 ... tokens per minute (TPM)` / `Please try again in 12.5s` | An ordinary rate limit. The pipeline already handles it: it parses the retry hint, sleeps, and resends. Nothing to do. |
 | `429 ... output tokens per minute (OTPM)` / `reduce max_tokens` | Your tier's per-minute **output** ceiling is below what one request asks for. The pipeline reads the advertised `Limit` out of the message, lowers its own ceiling for the rest of the run, and retries immediately — no sleep, because resending an identical oversized request can never succeed. Pin it up front with `AEDI_MAX_OUTPUT_TOKENS=1000` to skip the discovery round-trip. Floor is 256 tokens; below that a response cannot fit the required JSON. |
-| The same OTPM error keeps repeating after the ceiling has already dropped | A *different* failure wearing the same message. Once the request already fits, a further OTPM rejection means the minute's output budget is spent, so the fix is to wait rather than shrink. The pipeline now backs off for the rest of the window instead of retrying instantly. If you see it every call, your account supports roughly one call a minute: set `AEDI_MODEL` to a model with a higher allowance, or raise the limit at console.groq.com/settings/billing. |
+| The same OTPM error keeps repeating after the ceiling has already dropped | A *different* failure wearing the same message. Once the request already fits, a further OTPM rejection means the minute's output budget is spent, so the fix is to wait rather than shrink. The pipeline now backs off for the rest of the window instead of retrying instantly. If you see it every call, your account supports roughly one call a minute: set `AEDI_MODEL` to a model with a higher allowance, or raise the limit at build.nvidia.com/settings/billing. |
 | Clicking **AEDI decides** in the Live tab spins forever | It no longer can. A live call is capped at `AEDI_LIVE_TIMEOUT` seconds (default 90) and then returns a 504 naming the likely cause. The attempt that overran is left to finish so its answer lands in `.cache/llm_responses/` — your retry is then instant. If it times out repeatedly, check the server log for `OTPM`. |
-| `400 tool_use_failed` with `'failed_generation': ''` | Not a prompt problem, despite what the message says. The default model is a reasoning model, and on Groq the output budget is spent on thinking **and** on answering — so a low output ceiling lets it burn the whole budget thinking and emit nothing. The pipeline now detects the empty generation and retries once with `reasoning_effort=none`, which hands the entire budget to the answer. If that also returns nothing it stops instead of retrying, because the configuration cannot work. Pin the behaviour with `AEDI_REASONING_EFFORT`. |
+| `400 tool_use_failed` with `'failed_generation': ''` | Not a prompt problem, despite what the message says. The default model is a reasoning model, and on NVIDIA NIM the output budget is spent on thinking **and** on answering — so a low output ceiling lets it burn the whole budget thinking and emit nothing. The pipeline now detects the empty generation and retries once with `reasoning_effort=none`, which hands the entire budget to the answer. If that also returns nothing it stops instead of retrying, because the configuration cannot work. Pin the behaviour with `AEDI_REASONING_EFFORT`. |
 | `400 tool_use_failed` with a populated `failed_generation` | A different failure with the same code: the model *did* answer, it just broke the tool schema. That answer is recovered out of the error body rather than discarded, so it costs nothing. Nothing to do. |
 | A live decision comes back as `manual_review` with confidence 0 | Check whether the console shows the red **The model never answered** banner. If it does, that row is the safe fallback after every attempt failed — not a judgement — and the server log has the cause. Without the banner it is a real verdict. |
 | The console looks unstyled, or a tab renders blank | `app/static/` is stale or partially deleted. Rebuild it: `cd web && npm install && npm run build`. |

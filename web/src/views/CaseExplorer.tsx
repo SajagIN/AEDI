@@ -296,7 +296,7 @@ export default function CaseExplorer({ health, split, setSplit }:
                   <Button variant="outline" onClick={() => doRun("live")} disabled={busy || !health.live_capable}>
                     <Zap size={14} /> Run live
                   </Button>
-                  {!health.live_capable && <span className="text-[12px] text-muted-foreground">needs a GROQ_API_KEY</span>}
+                  {!health.live_capable && <span className="text-[12px] text-muted-foreground">needs a NVIDIA_API_KEY</span>}
                   {busy && <span className="text-[12px] text-muted-foreground">working…</span>}
                 </div>
 

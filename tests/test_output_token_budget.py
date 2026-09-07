@@ -1,7 +1,7 @@
 """
 Regression tests for the adaptive output-token budget.
 
-Groq's free tier enforces an output-tokens-per-minute ceiling that can sit
+NVIDIA NIM's free tier enforces an output-tokens-per-minute ceiling that can sit
 BELOW this pipeline's per-request max_tokens. The API then rejects every call
 with a 429 before generating anything, and because the old retry path slept and
 resent an identical request, the run could never recover — 100 cases in, 100
@@ -70,14 +70,14 @@ def test_otpm_rejection_retries_immediately_instead_of_sleeping(main):
     recovers, because the rejection is deterministic, not congestion."""
     pool = main.KeyPool.__new__(main.KeyPool)   # no env keys needed
     pool._dead_until = {}
-    assert main._handle_error(pool, "GROQ_API_KEY", OTPM_ERROR) == 0
+    assert main._handle_error(pool, "NVIDIA_API_KEY", OTPM_ERROR) == 0
     assert pool._dead_until == {}, "an oversized request must not kill the key"
 
 
 def test_ordinary_rate_limit_still_backs_off(main):
     pool = main.KeyPool.__new__(main.KeyPool)
     pool._dead_until = {}
-    assert main._handle_error(pool, "GROQ_API_KEY", ORDINARY_RATE_LIMIT) == pytest.approx(12.5)
+    assert main._handle_error(pool, "NVIDIA_API_KEY", ORDINARY_RATE_LIMIT) == pytest.approx(12.5)
 
 
 def test_ceiling_only_ratchets_downward(main):
@@ -145,7 +145,7 @@ OTPM_1000 = (
 
 def test_first_otpm_rejection_resizes_and_retries_immediately(main):
     pool = _DummyPool()
-    assert main._handle_error(pool, "GROQ_API_KEY", OTPM_1000) == 0
+    assert main._handle_error(pool, "NVIDIA_API_KEY", OTPM_1000) == 0
     assert main._OUTPUT_TOKEN_CEILING == 1000
 
 
@@ -153,8 +153,8 @@ def test_second_identical_rejection_waits_instead_of_spinning(main):
     """The regression. Ceiling is already 1000 and cannot go lower, so a zero
     wait would retry an identical request that cannot succeed."""
     pool = _DummyPool()
-    main._handle_error(pool, "GROQ_API_KEY", OTPM_1000)      # discovery
-    wait = main._handle_error(pool, "GROQ_API_KEY", OTPM_1000)  # budget spent
+    main._handle_error(pool, "NVIDIA_API_KEY", OTPM_1000)      # discovery
+    wait = main._handle_error(pool, "NVIDIA_API_KEY", OTPM_1000)  # budget spent
 
     assert wait > 0, "a repeat OTPM rejection must back off, not hot-loop"
     assert wait >= 30, "OTPM refills on a minute boundary — a token wait is pointless"
@@ -162,16 +162,16 @@ def test_second_identical_rejection_waits_instead_of_spinning(main):
 
 def test_repeat_rejection_still_does_not_kill_the_key(main):
     pool = _DummyPool()
-    main._handle_error(pool, "GROQ_API_KEY", OTPM_1000)
-    main._handle_error(pool, "GROQ_API_KEY", OTPM_1000)
+    main._handle_error(pool, "NVIDIA_API_KEY", OTPM_1000)
+    main._handle_error(pool, "NVIDIA_API_KEY", OTPM_1000)
     assert pool.dead == [], "OTPM is an account-wide budget, not a bad key"
 
 
 def test_repeat_rejection_honours_an_explicit_retry_hint(main):
     pool = _DummyPool()
-    main._handle_error(pool, "GROQ_API_KEY", OTPM_1000)
+    main._handle_error(pool, "NVIDIA_API_KEY", OTPM_1000)
     hinted = OTPM_1000.replace("and try again.", "and try again in 12.5s.")
-    assert main._handle_error(pool, "GROQ_API_KEY", hinted) == 12.5
+    assert main._handle_error(pool, "NVIDIA_API_KEY", hinted) == 12.5
 
 
 def test_note_returns_false_when_the_ceiling_cannot_move(main):
@@ -192,7 +192,7 @@ def test_a_pinned_ceiling_still_backs_off_rather_than_spinning(main, monkeypatch
     monkeypatch.setenv("AEDI_MAX_OUTPUT_TOKENS", "1000")
     mod = _load_fresh()
     assert mod._OUTPUT_TOKEN_CEILING == 1000
-    assert mod._handle_error(_DummyPool(), "GROQ_API_KEY", OTPM_1000) >= 30
+    assert mod._handle_error(_DummyPool(), "NVIDIA_API_KEY", OTPM_1000) >= 30
 
 
 def test_model_is_overridable_without_editing_code(monkeypatch):
@@ -202,12 +202,12 @@ def test_model_is_overridable_without_editing_code(monkeypatch):
 
 def test_model_falls_back_to_the_default_when_unset(monkeypatch):
     monkeypatch.delenv("AEDI_MODEL", raising=False)
-    assert _load_fresh().MODEL == "qwen/qwen3.6-27b"
+    assert _load_fresh().MODEL == "meta/llama-3.3-70b-instruct"
 
 
 def test_blank_model_env_does_not_produce_an_empty_model(monkeypatch):
     monkeypatch.setenv("AEDI_MODEL", "   ")
-    assert _load_fresh().MODEL == "qwen/qwen3.6-27b"
+    assert _load_fresh().MODEL == "meta/llama-3.3-70b-instruct"
 
 
 # ── the interactive wait cap ──────────────────────────────────────────────
@@ -223,7 +223,7 @@ def test_analyze_case_refuses_a_wait_longer_than_the_caller_allows(main, monkeyp
     def slow_limit(*a, **k):
         raise main.LLMCallError(
             Exception("Error code: 429 - rate_limit_exceeded. Please try again in 300s."),
-            "GROQ_API_KEY")
+            "NVIDIA_API_KEY")
 
     monkeypatch.setattr(main, "_run_agent_turn", slow_limit)
 
@@ -240,7 +240,7 @@ def test_analyze_case_without_a_cap_keeps_the_batch_behaviour(main, monkeypatch)
     def slow_limit(*a, **k):
         raise main.LLMCallError(
             Exception("Error code: 429 - rate_limit_exceeded. Please try again in 300s."),
-            "GROQ_API_KEY")
+            "NVIDIA_API_KEY")
 
     monkeypatch.setattr(main, "_run_agent_turn", slow_limit)
     main.analyze_case(_DummyPool(), None, {"case_id": "x"}, {})
@@ -255,7 +255,7 @@ def test_a_wait_within_budget_is_still_honoured(main, monkeypatch):
     def quick_limit(*a, **k):
         raise main.LLMCallError(
             Exception("Error code: 429 - rate_limit_exceeded. Please try again in 3s."),
-            "GROQ_API_KEY")
+            "NVIDIA_API_KEY")
 
     monkeypatch.setattr(main, "_run_agent_turn", quick_limit)
     main.analyze_case(_DummyPool(), None, {"case_id": "x"}, {}, max_wait=20)

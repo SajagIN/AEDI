@@ -66,7 +66,7 @@ all three with numbers on data it never tuned against.
 
 Start the console — `python app/server.py` → `http://127.0.0.1:8000`.
 
-**Get a free Groq key before you demo.** With one, the Injection Playground
+**Get a free NVIDIA NIM key before you demo.** With one, the Injection Playground
 takes live text from a judge, which is the single strongest moment you have.
 Without it everything else still works offline.
 
@@ -252,7 +252,7 @@ python -m pytest tests/ -q                 # 256 passed
 python app/server.py                       # console up on :8000
 ```
 
-- [ ] `GROQ_API_KEY` in `.env` so the playground is live
+- [ ] `NVIDIA_API_KEY` in `.env` so the playground is live
 - [ ] Console open on the Overview tab, volume set to a realistic number
 - [ ] `cb_0142` located in the Case Explorer
 - [ ] One case from the Disagreements filter picked out in advance

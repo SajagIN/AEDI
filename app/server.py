@@ -12,11 +12,11 @@ reimplemented here:
 
 Two operating modes, detected at startup:
 
-- REPLAY (no GROQ_API_KEY): every deterministic signal, the full evaluation
+- REPLAY (no NVIDIA_API_KEY): every deterministic signal, the full evaluation
   harness, and the committed predictions are available. "Run agent" replays
   the committed decision for that case. This mode always works — no
   network, no credentials, nothing to configure.
-- LIVE (GROQ_API_KEY present): "Run agent" additionally calls the real
+- LIVE (NVIDIA_API_KEY present): "Run agent" additionally calls the real
   bounded agent loop for a single case, through the same disk cache the
   batch pipeline uses.
 
@@ -80,7 +80,7 @@ _cache = pipeline.ResponseCache()
 
 def has_api_key() -> bool:
     import re
-    return any(re.fullmatch(r"GROQ_API_KEY(_\d+)?", k) and v for k, v in os.environ.items())
+    return any(re.fullmatch(r"NVIDIA_API_KEY(_\d+)?", k) and v for k, v in os.environ.items())
 
 
 def read_csv(path: Path) -> list:
@@ -251,7 +251,7 @@ def analyze():
 
     if mode == "live":
         if not has_api_key():
-            return jsonify({"error": "LIVE mode needs a GROQ_API_KEY in .env"}), 400
+            return jsonify({"error": "LIVE mode needs an NVIDIA_API_KEY in .env"}), 400
         try:
             if _pool is None:
                 _pool = pipeline.KeyPool()
@@ -406,7 +406,7 @@ def injection_test():
     if not narrative:
         return jsonify({"error": "empty narrative"}), 400
     if not has_api_key():
-        return jsonify({"error": "needs LIVE mode — set GROQ_API_KEY in .env and restart. "
+        return jsonify({"error": "needs LIVE mode — set NVIDIA_API_KEY in .env and restart. "
                                  "Novel text has to be judged by the model; replaying a "
                                  "canned verdict here would be theatre."}), 400
     row = dict(NEUTRAL_BASE_CASE, case_id="playground", merchant_narrative=narrative)
@@ -498,12 +498,12 @@ def run_agent_bounded(row, ctx, deadline=None):
 
     if worker.is_alive():
         return None, TimeoutError(
-            f"The model did not answer within {deadline:.0f}s. On a free Groq tier this is "
+            f"The model did not answer within {deadline:.0f}s. On a free NVIDIA NIM tier this is "
             f"usually the output-tokens-per-minute limit: the account can place roughly one "
             f"call a minute, so an interactive run stalls. Check the server log for 'OTPM'. "
             f"Options: wait a minute and retry (the attempt still running will land in the "
             f"cache, making the retry fast), set AEDI_MODEL to a model with a higher free-tier "
-            f"limit, or raise the limit at console.groq.com/settings/billing.")
+            f"limit, or raise the limit at build.nvidia.com.")
     if "error" in box:
         return None, box["error"]
     return box.get("result"), None
@@ -777,7 +777,7 @@ def rzp_decide():
 
     if not has_api_key():
         return jsonify({
-            "error": "Deciding a live chargeback needs a GROQ_API_KEY in .env. The narrative is "
+            "error": "Deciding a live chargeback needs an NVIDIA_API_KEY in .env. The narrative is "
                      "novel text, so there is no committed prediction to replay and inventing "
                      "one would be theatre. The deterministic signals below are still real.",
             "signals": sig, "deterministic_flags": flags, "trace": trace,
@@ -990,7 +990,7 @@ def logo():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8000"))
-    mode = "LIVE (agent will call the model)" if has_api_key() else "REPLAY (no GROQ_API_KEY — no network calls)"
+    mode = "LIVE (agent will call the model)" if has_api_key() else "REPLAY (no NVIDIA_API_KEY — no network calls)"
     print(f"AEDI console starting in {mode}")
     print(f"  open http://127.0.0.1:{port}")
     app.run(host="0.0.0.0", port=port, debug=False)

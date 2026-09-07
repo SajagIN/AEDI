@@ -20,11 +20,11 @@ justification, a confidence score, and the specific evidence IDs cited.
 
 | Component | File | Role |
 |---|---|---|
-| `KeyPool` | `code/main.py` | Round-robins across every `GROQ_API_KEY*` found in the environment; marks a key dead on auth failure or daily-cap exhaustion so later calls skip it. |
+| `KeyPool` | `code/main.py` | Round-robins across every `NVIDIA_API_KEY*` found in the environment; marks a key dead on auth failure or daily-cap exhaustion so later calls skip it. |
 | `ResponseCache` | `code/llm_cache.py` | Disk cache keyed by a hash of the exact LLM request. Checked before every call, written after every success. Makes re-running the pipeline over already-seen cases free. |
 | `risk_signals` | `code/risk_signals.py` | Computes evidence sufficiency, amount anomaly, and merchant repeat-pattern — pure functions, no LLM involved. Shared between the runtime pipeline and the dataset generator (see §5 on why that sharing is safe). |
 | `Dataset` / `build_context` | `code/main.py` | Loads reference tables (merchant history, reason-code requirements) and assembles the per-case context handed to the model, including the risk_signals output. |
-| Agent loop | `code/main.py::_run_agent_turn` | Bounded, 2-round tool-calling loop against Groq (`qwen/qwen3.6-27b`). See §3. |
+| Agent loop | `code/main.py::_run_agent_turn` | Bounded, 2-round tool-calling loop against NVIDIA NIM (`meta/llama-3.3-70b-instruct`). See §3. |
 | `_execute_tool` | `code/main.py` | Executes an info-gathering tool call. Ignores every model-supplied argument; always resolves against the pipeline's own context for the current case. |
 | `apply_deterministic_overrides` | `code/main.py` | Post-processes the model's output, pinning evidence sufficiency and the three mechanically-derivable risk flags to the code-computed value regardless of what the model said. |
 | Evaluation harness | `code/evaluation/main.py` | Confusion matrix, precision/recall/coverage, false-positive cost model, two baselines. `--split held_out` required a one-time explicit opt-in flag; held-out has now been opened, at code freeze, with real results in the README. |
@@ -38,7 +38,7 @@ justification, a confidence score, and the specific evidence IDs cited.
 sequenceDiagram
     participant P as code/main.py
     participant C as llm_cache.py (disk)
-    participant M as Groq (qwen/qwen3.6-27b)
+    participant M as NVIDIA NIM (meta/llama-3.3-70b-instruct)
     participant T as _execute_tool()
 
     P->>P: build_context() — evidence_sufficiency, amount_anomaly,<br/>merchant_repeat_pattern all computed here, deterministically
@@ -112,7 +112,7 @@ even where it costs a better-looking metric.
 
 ## 6. Reliability under real quota constraints
 
-Free-tier LLM quota (Groq: 200,000 tokens/day, enforced per account, not
+Free-tier LLM quota (NVIDIA NIM: 200,000 tokens/day, enforced per account, not
 per key generated within an account) is the binding constraint on how much live testing this
 project can do per day, not compute or code complexity. Mitigations, in
 the order they matter:

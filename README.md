@@ -106,7 +106,7 @@ python code/evaluation/main.py --split held_out \
 ### The console
 
 `app/server.py` puts a UI in front of the pipeline. It detects its own mode at
-startup: **REPLAY** without a `GROQ_API_KEY` (every deterministic signal, the
+startup: **REPLAY** without a `NVIDIA_API_KEY` (every deterministic signal, the
 full evaluation harness and the committed predictions — no network at all), or
 **LIVE** with one (adds a button that runs the real agent loop on a single case).
 
@@ -179,7 +179,7 @@ instruction (fine — that's the merchant reporting something) from text that
 sequenceDiagram
     participant P as code/main.py
     participant C as llm_cache.py (disk)
-    participant M as Groq (qwen/qwen3.6-27b)
+    participant M as NVIDIA NIM (meta/llama-3.3-70b-instruct)
     participant T as _execute_tool()
 
     P->>P: build_context() — evidence_sufficiency, amount_anomaly,<br/>merchant_repeat_pattern all computed here, deterministically
@@ -367,7 +367,7 @@ cd code
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r ../requirements.txt
-cp ../.env.example ../.env  # then add your own GROQ_API_KEY — never commit .env
+cp ../.env.example ../.env  # then add your own NVIDIA_API_KEY — never commit .env
 cp ../scripts/pre-commit ../.git/hooks/pre-commit  # blocks a commit if it finds a leaked key
 ```
 

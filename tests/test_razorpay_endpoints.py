@@ -11,7 +11,7 @@ The behaviours pinned here are the ones a demo would expose:
   * a real payment id is never taken on trust from the browser,
   * a locally raised chargeback is never submitted to Razorpay,
   * the deterministic half of the pipeline runs on live data without a
-    GROQ_API_KEY, and says so rather than inventing a decision.
+    NVIDIA_API_KEY, and says so rather than inventing a decision.
 """
 
 import sys
@@ -255,11 +255,11 @@ def test_disputes_listing_explains_the_missing_create_api(configured):
 
 # ── deciding ──────────────────────────────────────────────────────────────
 
-def test_deciding_without_a_groq_key_refuses_but_still_returns_real_signals(
+def test_deciding_without_a_nvidia_nim_key_refuses_but_still_returns_real_signals(
         configured, fake, monkeypatch):
     """The deterministic half is genuinely computable offline; the model half
     is not. The endpoint must give the first and decline the second."""
-    for key in [k for k in list(__import__("os").environ) if k.startswith("GROQ_API_KEY")]:
+    for key in [k for k in list(__import__("os").environ) if k.startswith("NVIDIA_API_KEY")]:
         monkeypatch.delenv(key, raising=False)
 
     _, resp = _raise_chargeback(configured, fake)
@@ -268,7 +268,7 @@ def test_deciding_without_a_groq_key_refuses_but_still_returns_real_signals(
     decide = configured.post("/api/rzp/decide", json={"dispute_id": dispute_id})
     assert decide.status_code == 400
     body = _json(decide)
-    assert "GROQ_API_KEY" in body["error"]
+    assert "NVIDIA_API_KEY" in body["error"]
     assert body["signals"]["evidence_sufficiency"] == "sufficient"
     assert any(t["step"] == "risk_signals" for t in body["trace"])
     assert any(t["step"] == "razorpay.fetch_payment" for t in body["trace"])

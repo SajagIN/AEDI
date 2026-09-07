@@ -6,7 +6,7 @@ The failure this pins, seen on a live account:
     400 - {'code': 'tool_use_failed', 'failed_generation': ''}
 
 repeated three times, then a fallback row. It reads like a malformed prompt and
-is nothing of the sort. The default model is a reasoning model, and on Groq the
+is nothing of the sort. The default model is a reasoning model, and on NVIDIA NIM the
 output-token budget is spent on thinking AND on speaking — reasoning_format
 "hidden" strips the thinking from the response but the tokens are still
 generated against the same ceiling. On an account whose OTPM ceiling is 1000,
@@ -27,7 +27,7 @@ import pytest
 REPO_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(REPO_ROOT / "code"))
 
-# The exact shape Groq returned on the reported run.
+# The exact shape NVIDIA NIM returned on the reported run.
 STARVED = (
     "Error code: 400 - {'error': {'message': \"Failed to call a function. Please adjust "
     "your prompt. See 'failed_generation' for more details.\", 'type': "
@@ -80,55 +80,12 @@ def test_unrelated_errors_are_not_starvation(main):
         assert main.is_starved_tool_call(err) is False
 
 
-# ── the budget decides whether reasoning is affordable ────────────────────
-
-def test_an_unconstrained_account_leaves_reasoning_alone(main):
-    assert main.reasoning_effort_for(3800) is None, "don't send the parameter at all"
-
-
-def test_a_modest_first_round_ask_does_not_disable_reasoning(main):
-    """ROUND_MAX_TOKENS is a deliberate choice, not a constraint. Reading it as
-    one would disable reasoning on healthy accounts and quietly change the
-    behaviour the committed metrics were measured under."""
-    assert main.ROUND_MAX_TOKENS < main.REASONING_MIN_BUDGET, "premise of this test"
-    assert main.reasoning_effort_for(main.ROUND_MAX_TOKENS) is None
-
-
-def test_a_squeezed_account_turns_reasoning_off(main):
-    main.note_output_token_limit("output tokens per minute (OTPM): Limit 1000, Requested 1463")
-    assert main.reasoning_effort_for(1000) == "none"
-
-
-def test_the_threshold_is_the_documented_one(main):
-    main.note_output_token_limit(
-        f"output tokens per minute (OTPM): Limit {main.REASONING_MIN_BUDGET}, Requested 9999")
-    assert main.reasoning_effort_for(3800) is None
-
-    main.note_output_token_limit(
-        f"output tokens per minute (OTPM): Limit {main.REASONING_MIN_BUDGET - 1}, Requested 9999")
-    assert main.reasoning_effort_for(3800) == "none"
-
-
-def test_an_explicit_override_wins_even_on_a_squeezed_account(monkeypatch):
-    mod = _load("aedi_main_effort_env", {"AEDI_REASONING_EFFORT": "default"}, monkeypatch)
-    mod.note_output_token_limit("output tokens per minute (OTPM): Limit 500, Requested 1463")
-    assert mod.reasoning_effort_for(500) == "default", (
-        "AEDI_REASONING_EFFORT=default must force reasoning back on")
-
-
-def test_an_override_also_applies_to_a_healthy_budget(monkeypatch):
-    mod = _load("aedi_main_effort_env2", {"AEDI_REASONING_EFFORT": "none"}, monkeypatch)
-    assert mod.reasoning_effort_for(3800) == "none"
-
-
-def test_a_low_otpm_ceiling_reaches_the_reasoning_decision(main):
-    """The two mechanisms have to compose: an OTPM ceiling of 1000 must end up
-    disabling reasoning, because 1000 is what the account actually allows."""
+def test_a_low_output_ceiling_clamps_the_classify_budget(main):
+    """A discovered ceiling has to reach the budget the forced round asks for."""
     main.note_output_token_limit(
         "output tokens per minute (OTPM): Limit 1000, Requested 1463")
     budget = main.output_token_budget(main.CLASSIFY_MAX_TOKENS)
     assert budget == 1000
-    assert main.reasoning_effort_for(budget) == "none"
 
 
 # ── what a starved call does next ─────────────────────────────────────────
@@ -145,7 +102,7 @@ class _Boom:
             raise Exception(self.err)
         return ({"content": None, "tool_calls": [{
             "id": "c1", "function": {"name": "classify_chargeback",
-                                     "arguments": '{"decision": "contest"}'}}]}, "GROQ_API_KEY")
+                                     "arguments": '{"decision": "contest"}'}}]}, "NVIDIA_API_KEY")
 
 
 def _turn(main, monkeypatch, boom, max_rounds=1):
@@ -157,13 +114,13 @@ def _turn(main, monkeypatch, boom, max_rounds=1):
                                 max_rounds=max_rounds)
 
 
-def test_a_starved_call_retries_with_reasoning_disabled(main, monkeypatch):
-    boom = _Boom(STARVED, fails=1)   # first attempt starves, second answers
+def test_a_starved_call_retries_without_thinking(main, monkeypatch):
+    boom = _Boom(STARVED, fails=1)   # first attempt returns nothing, second answers
     _turn(main, monkeypatch, boom)
 
     assert len(boom.calls) == 2
-    assert boom.calls[1]["reasoning_effort"] == "none", (
-        "the retry must free the budget, not repeat the request")
+    assert boom.calls[1]["extra_body"]["chat_template_kwargs"]["thinking"] is False, (
+        "the retry must free the budget for the answer, not repeat the request")
 
 
 def test_a_starved_retry_does_not_make_the_prompt_longer(main, monkeypatch):
@@ -215,30 +172,26 @@ def test_analyze_case_does_not_sleep_on_a_proven_dead_end(main, monkeypatch):
     assert not slept, "an unwinnable configuration must not be retried"
 
 
-# ── the request Groq actually receives ────────────────────────────────────
+# ── the request NVIDIA NIM actually receives ────────────────────────────────────
 
-def test_the_budget_is_sent_as_max_completion_tokens(main, monkeypatch):
-    """On a reasoning model max_tokens is deprecated and does not describe
-    thinking plus answer; max_completion_tokens does."""
+def test_the_budget_is_sent_as_plain_max_tokens(main, monkeypatch):
+    """NIM serves the OpenAI Chat Completions dialect, where max_tokens is the
+    output ceiling. max_completion_tokens was the previous provider's spelling
+    for a reasoning model billing thought and answer against one number."""
     boom = _Boom(STARVED, fails=0)
     _turn(main, monkeypatch, boom)
-    assert "max_completion_tokens" in boom.calls[0]
-    assert "max_tokens" not in boom.calls[0]
+    assert boom.calls[0]["max_tokens"]
+    assert "max_completion_tokens" not in boom.calls[0]
 
 
-def test_reasoning_format_stays_hidden_for_tool_calling(main, monkeypatch):
-    """Groq requires parsed or hidden whenever tools are in play."""
-    boom = _Boom(STARVED, fails=0)
-    _turn(main, monkeypatch, boom)
-    assert boom.calls[0]["extra_body"]["reasoning_format"] == "hidden"
-
-
-def test_an_unconstrained_account_sends_no_reasoning_effort_at_all(main, monkeypatch):
-    """Leaving the parameter off keeps the committed metrics reproducible —
-    they were measured with the model's default reasoning behaviour."""
+def test_no_reasoning_parameters_are_sent_on_the_happy_path(main, monkeypatch):
+    """reasoning_format and reasoning_effort were provider-specific and are
+    gone. Sending an unknown key to NIM is at best ignored and at worst a 400,
+    so the ordinary request carries neither."""
     boom = _Boom(STARVED, fails=0)
     _turn(main, monkeypatch, boom)
     assert "reasoning_effort" not in boom.calls[0]
+    assert "extra_body" not in boom.calls[0]
 
 
 # ── an unanswered case must not look like a decision ──────────────────────
@@ -265,14 +218,15 @@ def test_starvation_is_handled_in_the_first_round_too(main, monkeypatch):
     main._run_agent_turn(object(), object(), [{"role": "user", "content": "x"}], {},
                          max_rounds=2)
 
-    assert boom.calls[0].get("reasoning_effort") is None
-    assert boom.calls[1]["reasoning_effort"] == "none", (
-        "round one must be able to disable reasoning without waiting for round two")
+    assert "extra_body" not in boom.calls[0]
+    assert boom.calls[1]["extra_body"]["chat_template_kwargs"]["thinking"] is False, (
+        "round one must be able to ask for the answer without thinking, "
+        "rather than waiting for round two")
 
 
 def test_a_non_starvation_error_still_fails_the_first_round_immediately(main, monkeypatch):
-    """The extra local attempt exists only for the reasoning flip; it must not
-    turn round one into a general retry loop."""
+    """The extra local attempt exists only for the no-thinking retry; it must
+    not turn round one into a general retry loop."""
     boom = _Boom("500 internal server error", fails=99)
     monkeypatch.setattr(main, "_call_llm", boom)
     with pytest.raises(Exception, match="internal server error"):

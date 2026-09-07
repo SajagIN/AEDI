@@ -1,7 +1,7 @@
 """
 Regression tests for the wall-clock deadline on live (LIVE mode) agent calls.
 
-The bug this pins: on a Groq account whose output-tokens-per-minute limit sits
+The bug this pins: on a NVIDIA account whose output-tokens-per-minute limit sits
 below one request's worth of output, the agent legitimately needs to wait out a
 minute per call. In the batch runner that is correct. Behind a browser request
 it is not: the operator clicks "run the pipeline", the request never returns,
@@ -67,7 +67,7 @@ def test_the_timeout_message_names_the_real_cause_and_the_ways_out(server, monke
     assert "OTPM" in text, "the operator needs the token to grep the server log for"
     assert "AEDI_MODEL" in text, "switching model is the fastest way out"
     assert "cache" in text.lower(), "explain why the retry will be quick"
-    assert "console.groq.com" in text
+    assert "build.nvidia.com" in text
 
 
 def test_an_ordinary_failure_is_reported_as_itself_not_as_a_timeout(server, monkeypatch):
@@ -85,7 +85,7 @@ def test_a_missing_key_still_surfaces_as_systemexit(server, monkeypatch):
     """analyze_case can sys.exit() when no key is configured. That must reach
     the route, which turns it into a 400 rather than a 504."""
     def no_key(*a, **k):
-        raise SystemExit("Error: no GROQ_API_KEY* found.")
+        raise SystemExit("Error: no NVIDIA_API_KEY* found.")
 
     monkeypatch.setattr(server.pipeline, "analyze_case", no_key)
     _, error = server.run_agent_bounded({"case_id": "x"}, {})
@@ -155,7 +155,7 @@ def test_a_live_call_without_a_key_is_still_a_400_not_a_504(server, monkeypatch)
     resp = server.app.test_client().post(
         "/api/analyze", json={"split": "held_out", "case_id": "cb_0142", "mode": "live"})
     assert resp.status_code == 400
-    assert "GROQ_API_KEY" in resp.get_json()["error"]
+    assert "NVIDIA_API_KEY" in resp.get_json()["error"]
 
 
 def test_replay_mode_is_untouched_by_the_deadline(server, monkeypatch):
