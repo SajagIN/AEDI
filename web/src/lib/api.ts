@@ -193,3 +193,24 @@ export const rzpSubmit = (dispute_id: string, payload?: unknown) =>
 export const paise = (v: number) => inr((v || 0) / 100);
 export const clock = (ts: number) =>
   new Date(ts * 1000).toLocaleTimeString("en-IN", { hour12: false });
+
+/* ── merchant adverse-media intel (SerpAPI) ────────────────────────────────
+   Escalate-only by contract: this signal may route a case to a human and may
+   never clear one. The server restates that in every payload; the UI restates
+   it on screen. See app/merchant_intel.py. */
+export type IntelResult = {
+  title: string; link: string; domain: string; snippet: string;
+  on_complaint_site: boolean; matched_terms: string[];
+};
+export type MerchantIntel = {
+  merchant_name: string; query: string;
+  signal: "clear" | "some" | "elevated";
+  n_complaint_results: number; n_other_results: number;
+  results: IntelResult[]; cached: boolean;
+  escalate_only: boolean; advisory: string;
+  error?: string; configured?: boolean;
+};
+export const merchantIntelStatus = () =>
+  j("/api/merchant-intel/status") as Promise<{ configured: boolean; provider: string; escalate_only: boolean }>;
+export const merchantIntel = (merchant_name: string) =>
+  post("/api/merchant-intel", { merchant_name }) as Promise<MerchantIntel>;

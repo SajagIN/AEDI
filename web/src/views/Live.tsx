@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import MerchantIntelPanel from "@/components/merchant-intel-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -630,6 +631,11 @@ ${JSON.stringify(decision.razorpay_request.body ?? {}, null, 2)}`}
               </CardContent>
             </Card>
           )}
+
+          {/* Early warning, alongside the live flow. Deliberately its own
+              panel rather than a field on the decision: this signal informs
+              a person, it does not feed the pipeline. */}
+          <MerchantIntelPanel />
         </div>
       </div>
     </div>
