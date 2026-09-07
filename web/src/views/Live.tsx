@@ -442,10 +442,11 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
                     return (
                       <button key={t}
                         onClick={() => setEvidence((cur) => on ? cur.filter((x) => x !== t) : [...cur, t])}
-                        className={`rounded-md border px-2.5 py-1.5 font-mono text-[10.5px] uppercase tracking-[.09em] transition-colors
-                          ${on ? "border-signal-info/40 bg-signal-info/10 text-signal-info"
-                               : req ? "border-signal-bad/30 bg-signal-bad/[.05] text-signal-bad"
-                               : "border-border bg-secondary/50 text-muted-foreground hover:bg-secondary"}`}>
+                        aria-pressed={on}
+                        className={`rounded-full px-3 py-1.5 font-mono text-[10.5px] uppercase tracking-[.09em] transition-[box-shadow,color]
+                          ${on ? "nm-inset text-signal-info"
+                               : req ? "nm-raised-sm text-signal-bad"
+                               : "nm-raised-sm text-muted-foreground hover:text-foreground"}`}>
                         {t}{req && !on ? " · required" : ""}
                       </button>
                     );
@@ -603,7 +604,7 @@ ${JSON.stringify(decision.razorpay_request.body ?? {}, null, 2)}`}
               )}
               <div className="space-y-1.5">
                 {[...events].reverse().map((e) => (
-                  <div key={e.id} className="animate-reveal-x rounded-lg border border-border bg-secondary/40 px-3 py-2">
+                  <div key={e.id} className="nm-raised-sm animate-reveal-x rounded-lg px-3 py-2">
                     <div className="mb-0.5 flex items-center gap-2">
                       <Badge variant={e.origin === "razorpay" ? "good" : e.origin === "aedi" ? "alt" : "warn"}>
                         {e.kind}

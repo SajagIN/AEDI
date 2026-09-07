@@ -146,14 +146,23 @@ export default function Overview({ split }: { split: string }) {
                 <div className="flex items-center gap-3">
                   <Slider
                     aria-label={c.label}
-                    value={[Math.min(c.v, c.max)]}
+                    value={[Math.min(c.max, Math.max(c.min, c.v))]}
                     min={c.min} max={c.max} step={c.step}
                     onValueChange={([n]) => c.set(n)}
                   />
+                  {/* Clamped to the slider's range, but the two ends clamp at
+                      different moments on purpose. The ceiling applies as you
+                      type, because exceeding it is the case where the thumb
+                      would park at the end reading something the box does not.
+                      The floor waits for blur: min is 250, so clamping it per
+                      keystroke would turn the 4 of 4000 into 250 and make the
+                      value literally untypeable. */}
                   <Input
-                    id={`proj-${c.id}`} type="number" value={c.v} min={1}
+                    id={`proj-${c.id}`} type="number" value={c.v}
+                    min={c.min} max={c.max} step={c.step}
                     className={`h-9 shrink-0 ${c.w} tnum`}
-                    onChange={(e) => c.set(Math.max(1, +e.target.value || 0))}
+                    onChange={(e) => c.set(Math.min(c.max, Math.max(0, +e.target.value || 0)))}
+                    onBlur={(e) => c.set(Math.min(c.max, Math.max(c.min, +e.target.value || c.min)))}
                   />
                 </div>
               </div>

@@ -48,9 +48,10 @@ export default {
         /* The one bright. Used for money, the active tab and every primary
            action — and nothing else, so it never stops meaning "look". */
         cobalt: {
-          // DEFAULT is the text cut (4.9:1 on white). `bright` is the fill and
-          // hover cut — legible as a background, too light to set type in.
-          DEFAULT: "#0066CC", bright: "#0071E3", deep: "#004E9E", ink: "#FFFFFF",
+          // DEFAULT is the text cut, re-measured against the #E7E9ED sheet
+          // rather than white: 5.74:1. `bright` is the fill and hover cut —
+          // legible as a background, too light to set type in.
+          DEFAULT: "#0058B0", bright: "#0071E3", deep: "#004E9E", ink: "#FFFFFF",
         },
 
         /* Verdict colours. Named for what they mean in a dispute, not for the
@@ -60,11 +61,17 @@ export default {
            so each has been darkened to clear 4.5:1 on paper while keeping
            its hue relationship to the others. */
         signal: {
-          good: "#0F7B43",   // contested and won, control not flagged
-          bad: "#C62A1B",    // liability accepted, attack landed
-          warn: "#9A5B00",   // the disclosed gap
-          info: "#1F6FA8",   // deterministic, computed in code
-          alt: "#5B4BB8",    // written by the model
+          // Re-cut a second time, for the grey sheet. These were mixed
+          // against #FFFFFF and carried over unchanged when the substrate
+          // became #E7E9ED, at which point good/warn/info quietly dropped to
+          // 4.39, 4.46 and 4.43 — under AA, on the smallest text in the app.
+          // A tinted pill behind them hid it; extruded pills put the text
+          // straight onto the sheet, which is what surfaced it.
+          good: "#0B6B3A",   // contested and won, control not flagged — 5.46:1
+          bad: "#B3241A",    // liability accepted, attack landed      — 5.45:1
+          warn: "#7E4A00",   // the disclosed gap                      — 6.05:1
+          info: "#1A5F90",   // deterministic, computed in code        — 5.63:1
+          alt: "#4C3DA6",    // written by the model                   — 6.87:1
         },
       },
       borderRadius: { lg: "var(--radius)", md: "calc(var(--radius) - 1px)", sm: "calc(var(--radius) - 2px)" },

@@ -80,11 +80,11 @@ const Stepper = forwardRef<HTMLDivElement, StepperProps>(function Stepper({
                   onClick={() => clickable && onStepChange?.(i)}
                   aria-current={active ? "step" : undefined}
                   aria-label={`${i + 1}. ${label}`}
-                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border font-mono text-[10.5px] transition-colors
-                    ${active ? "border-cobalt bg-cobalt text-cobalt-ink"
-                      : done ? "border-signal-good/40 bg-signal-good/10 text-signal-good"
-                      : "border-border bg-secondary text-muted-foreground/55"}
-                    ${clickable ? "cursor-pointer hover:border-cobalt/50" : "cursor-default"}`}
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-mono text-[10.5px] transition-[box-shadow,color,transform]
+                    ${active ? "bg-cobalt text-cobalt-ink shadow-[inset_0_1px_0_hsl(0_0%_100%/.25),-3px_-3px_7px_hsl(var(--nm-light)/.7),3px_4px_9px_hsl(210_70%_35%/.45)]"
+                      : done ? "nm-raised-sm text-signal-good"
+                      : "nm-inset text-muted-foreground/70"}
+                    ${clickable ? "cursor-pointer hover:scale-105" : "cursor-default"}`}
                 >
                   {done ? <Check size={13} strokeWidth={2.5} /> : i + 1}
                 </button>

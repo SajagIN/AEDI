@@ -2,29 +2,50 @@ import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
-/* Badges are ledger stamps: square, monospace, letterspaced, tinted rather
-   than filled. They label provenance and verdicts, so they must never look
-   like buttons. */
+/*  Pills, extruded.
+ *
+ *  These used to be flat tinted rectangles — a wash of the signal colour at
+ *  10% behind matching text. That reads fine on white and badly on a grey
+ *  sheet, where a 10% tint is close enough to the substrate to look like a
+ *  printing error rather than a deliberate field.
+ *
+ *  So the surface is now the sheet itself, pushed up 3px, and the semantics
+ *  live entirely in the text colour. Every one of those colours was measured
+ *  against this exact substrate and clears 5.4:1, which a 10% tint behind
+ *  them never did.
+ *
+ *  Two things keep them from reading as buttons, which they must never do:
+ *  they are round where buttons are 8px-cornered, and they are set in
+ *  uppercase mono where buttons are set in Sora. They also have no hover and
+ *  no press state, because nothing here is clickable.
+ *
+ *  `outline` is the one variant that stays flat. It marks a baseline row or a
+ *  secondary fact, and something that recedes should not be extruded.
+ */
 const badgeVariants = cva(
-  "inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-1.5 py-[3px] font-mono text-[10px] uppercase leading-none tracking-[.1em]",
+  "inline-flex select-none items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 font-mono text-[10px] uppercase leading-none tracking-[.1em]",
   {
     variants: {
       variant: {
-        default: "border-border bg-secondary text-secondary-foreground",
-        outline: "border-border/80 text-muted-foreground",
-        cobalt: "border-cobalt/35 bg-cobalt/[.12] text-cobalt",
-        info: "border-signal-info/30 bg-signal-info/[.10] text-signal-info",
-        good: "border-signal-good/30 bg-signal-good/[.10] text-signal-good",
-        warn: "border-signal-warn/35 bg-signal-warn/[.10] text-signal-warn",
-        bad: "border-signal-bad/30 bg-signal-bad/[.10] text-signal-bad",
-        alt: "border-signal-alt/30 bg-signal-alt/[.10] text-signal-alt",
+        default: "nm-raised-sm text-secondary-foreground",
+        outline: "border border-border/90 text-muted-foreground",
+        cobalt: "nm-raised-sm text-cobalt",
+        info: "nm-raised-sm text-signal-info",
+        good: "nm-raised-sm text-signal-good",
+        warn: "nm-raised-sm text-signal-warn",
+        bad: "nm-raised-sm text-signal-bad",
+        alt: "nm-raised-sm text-signal-alt",
       },
     },
     defaultVariants: { variant: "default" },
-  }
+  },
 );
 
-export function Badge({ className, variant, ...props }: React.HTMLAttributes<HTMLDivElement> & VariantProps<typeof badgeVariants>) {
-  return <div className={cn(badgeVariants({ variant }), className)} {...props} />;
+/* A span, not a div: these sit inside paragraphs and table cells, and a
+   block-level element there is invalid markup that browsers silently repair
+   by closing the paragraph early. */
+export function Badge({ className, variant, ...props }:
+  React.HTMLAttributes<HTMLSpanElement> & VariantProps<typeof badgeVariants>) {
+  return <span className={cn(badgeVariants({ variant }), className)} {...props} />;
 }
 export { badgeVariants };
