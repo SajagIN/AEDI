@@ -27,6 +27,8 @@ export interface StrokeTextProps {
   stagger?: number;
   ease?: string;
   fillMode?: "wipe" | "fade" | "none";
+  /** SVG text inherits the page face unless told otherwise. */
+  fontFamily?: string;
   minFontSize?: number;
   maxFontSize?: number;
   fontWeight?: number | string;
@@ -47,6 +49,7 @@ export default function StrokeText({
   stagger = 0.045,
   ease = "power2.out",
   fillMode = "wipe",
+  fontFamily = "inherit",
   minFontSize = 40,
   maxFontSize = 132,
   fontWeight = 600,
@@ -67,8 +70,8 @@ export default function StrokeText({
   const dash = Math.max(fontSize * 7, 200);
 
   const fontStyle = useMemo<CSSProperties>(
-    () => ({ fontSize: `${fontSize}px`, fontWeight, letterSpacing: `${letterSpacing}px` }),
-    [fontSize, fontWeight, letterSpacing],
+    () => ({ fontFamily, fontSize: `${fontSize}px`, fontWeight, letterSpacing: `${letterSpacing}px` }),
+    [fontFamily, fontSize, fontWeight, letterSpacing],
   );
 
   /* Size the type to the box it is in, rather than reserving a fixed height
@@ -124,7 +127,7 @@ export default function StrokeText({
     measure();
     document.fonts?.ready.then(measure).catch(() => {});
     return () => { cancelled = true; };
-  }, [characters, fontSize, fontWeight, letterSpacing, strokeWidth]);
+  }, [characters, fontFamily, fontSize, fontWeight, letterSpacing, strokeWidth]);
 
   useEffect(() => {
     const root = rootRef.current;

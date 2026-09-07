@@ -22,13 +22,18 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        // Manrope for mastheads and hero numbers: geometric, near-uniform
-        // figure widths, and it holds an edge when set tight and heavy.
-        display: ['"Manrope Variable"', 'Manrope', 'ui-sans-serif', 'sans-serif'],
-        sans: ['"Manrope Variable"', 'Manrope', 'ui-sans-serif', 'sans-serif'],
-        // Kept for one job only: model-authored prose is serif italic.
-        quote: ['"Instrument Serif"', 'Georgia', 'serif'],
-        mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        // Headings: wide geometric curves that agree with the soft-UI radii.
+        display: ['Jakarta', 'ui-sans-serif', 'sans-serif'],
+        // Body and financial data. Legible at 12px, which is where most of
+        // this interface actually lives.
+        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        // Buttons only, so an action reads as one inside a soft container.
+        action: ['Sora', 'ui-sans-serif', 'sans-serif'],
+        // Labels, table heads, and every computed figure.
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        // Two jobs: the wordmark, and model-authored prose set in italic.
+        quote: ['"Bodoni Moda"', 'Georgia', 'serif'],
+        wordmark: ['"Bodoni Moda"', 'Georgia', 'serif'],
       },
       colors: {
         border: "hsl(var(--border))", input: "hsl(var(--input))", ring: "hsl(var(--ring))",

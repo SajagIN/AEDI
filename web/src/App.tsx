@@ -60,15 +60,21 @@ export default function App() {
           Set like the head of a printed report: the wordmark in the serif,
           everything else in small monospace caps, all of it sitting on a
           hairline rule. */}
-      <header className="sticky top-0 z-50 border-b border-border frost">
+      <header className="nm-raised sticky top-0 z-50 rounded-none border-0 frost">
         <div className="mx-auto max-w-[1400px] px-6">
           <div className="flex h-[68px] items-center gap-5">
-            <img src="/logo.png" alt="" className="h-8 w-8 rounded-lg ring-1 ring-cobalt/25" />
-
-            <div className="flex items-baseline gap-3">
-              <span className="font-display text-[27px] leading-none tracking-[.02em]">AEDI</span>
-              <span className="hidden font-quote text-[16px] italic leading-none text-cobalt sm:inline">
-                because a hunch isn&rsquo;t evidence
+            {/* The logo is gone: a 32px mark next to a four-letter wordmark was
+                two logos arguing. Bodoni Moda stands in for Bodoni MT
+                Condensed, which is a Monotype commercial licence — the
+                condensed feel comes from tracking, not from scaleX, because
+                squeezing a Didone thickens its hairlines and takes away the
+                only reason to set one. */}
+            <div className="flex items-baseline gap-3.5">
+              <span className="font-wordmark text-[31px] font-semibold leading-none tracking-[-.045em]">
+                AEDI
+              </span>
+              <span className="hidden font-mono text-[10px] uppercase leading-none tracking-[.14em] text-muted-foreground sm:inline">
+                Automated Evidence &middot; Defense against Injections
               </span>
             </div>
 
