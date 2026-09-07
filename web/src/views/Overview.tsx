@@ -94,7 +94,16 @@ export default function Overview({ split }: { split: string }) {
               strokeColor="#0071E3" fillColor="hsl(var(--foreground))"
               minFontSize={44} maxFontSize={130} strokeWidth={0.9} drawDuration={1.3} />
           </span>
-          <span aria-hidden className="mt-2 block font-quote text-[clamp(42px,9.1vw,118px)] italic leading-[0.9] text-cobalt">
+          {/* One line, always. Twenty-three characters against the twelve
+              above them, so at equal size this line would run half again as
+              wide as the container — the size is set to match the two lines by
+              WIDTH — the string measures 10.417em in Bodoni Moda italic, read
+              off the shipped font file, so container/10.417 is the size that
+              makes both lines end at the same place. The calc reproduces that
+              at every viewport instead of guessing at breakpoints. Weight
+              600 because a Didone at 400 is mostly hairline, and hairlines at
+              display size look like a rendering fault. */}
+          <span aria-hidden className="mt-3 block whitespace-nowrap font-quote text-[clamp(20px,calc(9.6vw_-_4.6px),78px)] font-semibold italic leading-[1.05] text-cobalt">
             answered with evidence.
           </span>
         </h1>

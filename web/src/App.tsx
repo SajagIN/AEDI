@@ -70,7 +70,13 @@ export default function App() {
                 squeezing a Didone thickens its hairlines and takes away the
                 only reason to set one. */}
             <div className="flex items-baseline gap-3.5">
-              <span className="font-wordmark text-[31px] font-semibold leading-none tracking-[-.045em]">
+              {/* Bodoni was the wrong call here. A Didone is built for large
+                  display sizes; at 31px in a 56px bar its hairlines thin out and
+                  its tall, small-x-height proportions read spindly rather than
+                  expensive. The wordmark wants to be recognised at a glance from
+                  across a room, which is a job for a geometric sans set heavy and
+                  tight. Bodoni keeps its other job — model-authored prose. */}
+              <span className="font-display text-[26px] font-extrabold leading-none tracking-[-.035em]">
                 AEDI
               </span>
               <span className="hidden font-mono text-[10px] uppercase leading-none tracking-[.14em] text-muted-foreground sm:inline">

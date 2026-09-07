@@ -90,7 +90,12 @@ export default function CaseExplorer({ health, split, setSplit }:
         <Card className="h-[calc(100vh-230px)] overflow-y-auto p-1.5">
           {visible.map((c) => (
             <button key={c.case_id} onClick={() => open(c.case_id)}
-              className={`mb-0.5 w-full rounded-lg px-3.5 py-3 text-left transition-colors ${sel === c.case_id ? "bg-signal-info/[.08] ring-1 ring-signal-info/25" : "hover:bg-secondary/60"}`}>
+              aria-current={sel === c.case_id ? "true" : undefined}
+              /* Selected means pressed in, everywhere in this interface — the
+                 segmented filter above and the evidence toggles on the Live tab
+                 already read that way, and a tinted-with-a-ring row was the last
+                 place still saying it differently. */
+              className={`mb-1 w-full rounded-lg px-3.5 py-3 text-left transition-[box-shadow,color] ${sel === c.case_id ? "nm-inset text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
               <div className="flex items-center justify-between gap-2">
                 <span className="font-mono text-[13px] font-semibold">{c.case_id}</span>
                 <span className="text-[12px] tnum text-muted-foreground">{num(c.amount)} {c.currency}</span>
@@ -192,7 +197,14 @@ export default function CaseExplorer({ health, split, setSplit }:
                   { l: "Amount anomaly", v: String(s?.amount_anomaly), bad: !!s?.amount_anomaly },
                   { l: "Merchant repeat pattern", v: String(s?.merchant_repeat_pattern), bad: !!s?.merchant_repeat_pattern },
                 ].map((x) => (
-                  <div key={x.l} className={`rounded-lg border p-4 ${x.bad ? "border-signal-bad/25 bg-signal-bad/[.05]" : "border-signal-good/25 bg-signal-good/[.04]"}`}>
+                  /* Recessed, not raised. These are readouts — a value the code
+                     computed and is now displaying — and a display milled into
+                     the panel is the soft-UI form for that. Raised is reserved
+                     for things that assert or invite a click. The tint is gone
+                     for the same reason it left the pills: a 5% wash on a sheet
+                     this close to it is not a colour, it is a smudge, and the
+                     value text carries the signal at 5.4:1 either way. */
+                  <div key={x.l} className="nm-inset rounded-xl p-4">
                     <div className="text-[10.5px] font-medium uppercase tracking-[.06em] text-muted-foreground">{x.l}</div>
                     <div className={`mt-1.5 font-mono text-[15px] font-medium ${x.bad ? "text-signal-bad" : "text-signal-good"}`}>{x.v}</div>
                   </div>

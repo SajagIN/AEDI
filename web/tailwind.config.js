@@ -31,9 +31,9 @@ export default {
         action: ['Sora', 'ui-sans-serif', 'sans-serif'],
         // Labels, table heads, and every computed figure.
         mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
-        // Two jobs: the wordmark, and model-authored prose set in italic.
+        // Model-authored prose, set in italic. It had the wordmark too until
+        // a Didone turned out to look spindly at masthead size.
         quote: ['"Bodoni Moda"', 'Georgia', 'serif'],
-        wordmark: ['"Bodoni Moda"', 'Georgia', 'serif'],
       },
       colors: {
         border: "hsl(var(--border))", input: "hsl(var(--input))", ring: "hsl(var(--ring))",
