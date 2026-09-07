@@ -509,9 +509,11 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
                     <AlertTriangle size={15} /> The model never answered
                   </div>
                   <p className="text-[12.5px] leading-relaxed text-muted-foreground">
-                    Safe fallback, not a judgement. Nothing was sent. Check the server log for{" "}
-                    <b className="font-mono text-[11.5px] text-foreground">OTPM</b> or{" "}
-                    <b className="font-mono text-[11.5px] text-foreground">tool_use_failed</b>.
+                    Safe fallback, not a judgement. Nothing was sent — the pipeline fails
+                    toward a person rather than guessing.
+                  </p>
+                  <p className="mt-2 break-words font-mono text-[11px] leading-relaxed text-signal-bad/90">
+                    {decision.trace?.find((t) => t.step === "safe_fallback")?.detail ?? "No cause was captured."}
                   </p>
                 </div>
               )}

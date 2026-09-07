@@ -64,10 +64,9 @@ def test_the_timeout_message_names_the_real_cause_and_the_ways_out(server, monke
     _, error = server.run_agent_bounded({"case_id": "x"}, {}, deadline=0.2)
     text = str(error)
 
-    assert "OTPM" in text, "the operator needs the token to grep the server log for"
+    assert "nim_doctor" in text, "the operator needs to be told how to diagnose it"
     assert "AEDI_MODEL" in text, "switching model is the fastest way out"
     assert "cache" in text.lower(), "explain why the retry will be quick"
-    assert "build.nvidia.com" in text
 
 
 def test_an_ordinary_failure_is_reported_as_itself_not_as_a_timeout(server, monkeypatch):
@@ -146,7 +145,7 @@ def test_a_timed_out_live_analyze_returns_504_with_a_readable_body(server, monke
     assert resp.status_code == 504, "a stalled model is a gateway timeout, not a 500"
     assert elapsed < 5, "the route must not wait on the worker"
     body = resp.get_json()
-    assert body and "OTPM" in body.get("error", ""), (
+    assert body and "nim_doctor" in body.get("error", ""), (
         "never fail a live call with an empty or unactionable body")
 
 

@@ -44,7 +44,8 @@ PATTERNS = [
 ]
 
 PLACEHOLDER_LOOKALIKES = re.compile(
-    r"^(your[_-]?key.*|xxx+|changeme|placeholder|<.*>|\.\.\.|example|none|null|test|dummy)$",
+    r"^(your[_-]?key.*|xxx+|changeme|placeholder|<.*>|\.\.\.|example|none|null|test|dummy"
+    r"|[A-Za-z][A-Za-z0-9_-]{0,15}[-_]?\.\.\.)$",
     re.IGNORECASE,
 )
 

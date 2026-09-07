@@ -914,6 +914,7 @@ def analyze_case(pool: KeyPool, cache: ResponseCache, row: dict, ctx: dict, retr
     backstop for whole-attempt failures (network, key exhaustion), not the
     primary recovery path for a malformed forced-round response anymore."""
     base_messages = build_messages(row, ctx)
+    last_error = None
     for attempt in range(retries):
         try:
             result, key_name = _run_agent_turn(pool, cache, base_messages, ctx)
@@ -924,6 +925,7 @@ def analyze_case(pool: KeyPool, cache: ResponseCache, row: dict, ctx: dict, retr
                 raise ValueError(f"model response missing required fields: {sorted(missing)}")
             return apply_deterministic_overrides(sanitize(result), ctx)
         except Exception as e:
+            last_error = e
             if isinstance(e, OutputBudgetTooSmall):
                 # Proven unwinnable: the model produced nothing even with
                 # reasoning off. Every remaining attempt would be identical, so
@@ -953,7 +955,17 @@ def analyze_case(pool: KeyPool, cache: ResponseCache, row: dict, ctx: dict, retr
             print(f"  Error attempt {attempt + 1} on {key_name} (wait {wait:.0f}s): {e}", file=sys.stderr)
             if attempt < retries - 1:
                 time.sleep(wait)
-    return dict(SAFE_FALLBACK)
+
+    # Carry the cause out with the fallback. Printing it to stderr and
+    # returning a bare placeholder meant an interactive caller could only be
+    # told to go and read a log it may not have in front of it — which is no
+    # help at all when the run is happening in a browser. The underscore keeps
+    # it out of the CSV: format_row copies named fields only.
+    fallback = dict(SAFE_FALLBACK)
+    if last_error is not None:
+        original = getattr(last_error, "original", last_error)
+        fallback["_error"] = f"{type(original).__name__}: {original}"
+    return fallback
 
 
 def format_row(case_id: str, result: dict) -> dict:

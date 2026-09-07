@@ -293,7 +293,8 @@ def analyze():
     if fallback:
         trace.append({"step": "safe_fallback", "kind": "blocked",
                       "detail": "the model never returned a usable answer — this row is the "
-                                "safe fallback, not a decision. Check the server log."})
+                                "safe fallback, not a decision. "
+                                + (result.get("_error") or "No cause was captured.")})
 
     cited = [c.strip() for c in str(result.get("cited_evidence_ids", "")).replace(",", ";").split(";") if c.strip()]
     gt = split_labels(split).get(case_id)
@@ -498,12 +499,12 @@ def run_agent_bounded(row, ctx, deadline=None):
 
     if worker.is_alive():
         return None, TimeoutError(
-            f"The model did not answer within {deadline:.0f}s. On a free NVIDIA NIM tier this is "
-            f"usually the output-tokens-per-minute limit: the account can place roughly one "
-            f"call a minute, so an interactive run stalls. Check the server log for 'OTPM'. "
+            f"The model did not answer within {deadline:.0f}s. On the free NVIDIA NIM tier the "
+            f"usual cause is the per-minute request limit, which queues a call rather than "
+            f"refusing it, so an interactive run stalls instead of erroring. "
             f"Options: wait a minute and retry (the attempt still running will land in the "
-            f"cache, making the retry fast), set AEDI_MODEL to a model with a higher free-tier "
-            f"limit, or raise the limit at build.nvidia.com.")
+            f"cache, making the retry fast), run scripts/nim_doctor.py to check the model "
+            f"answers a forced tool call at all, or set AEDI_MODEL to a smaller model.")
     if "error" in box:
         return None, box["error"]
     return box.get("result"), None
@@ -813,7 +814,8 @@ def rzp_decide():
     if fallback:
         trace.append({"step": "safe_fallback", "kind": "blocked",
                       "detail": "the model never returned a usable answer — this row is the "
-                                "safe fallback, not a decision. Check the server log."})
+                                "safe fallback, not a decision. "
+                                + (result.get("_error") or "No cause was captured.")})
 
     evidence_types = [i["type"] for i in sig["evidence_items"]]
     payload = razorpay_live.contest_payload(dispute, result, row, evidence_types)

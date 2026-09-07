@@ -310,9 +310,13 @@ export default function CaseExplorer({ health, split, setSplit }:
                       <TriangleAlert size={15} /> The model never answered
                     </div>
                     <p className="text-[12.5px] leading-relaxed text-muted-foreground">
-                      Safe fallback, not a judgement. Check the server log for{" "}
-                      <b className="font-mono text-[11.5px] text-foreground">OTPM</b> or{" "}
-                      <b className="font-mono text-[11.5px] text-foreground">tool_use_failed</b>.
+                      Safe fallback, not a judgement — the pipeline fails toward a person
+                      rather than guessing.
+                    </p>
+                    {/* The cause, not a token to go and grep for. Telling someone to
+                        read a server log is no help when the run happened in a browser. */}
+                    <p className="mt-2 break-words font-mono text-[11px] leading-relaxed text-signal-bad/90">
+                      {run.trace?.find((t) => t.step === "safe_fallback")?.detail ?? "No cause was captured."}
                     </p>
                   </div>
                 )}
