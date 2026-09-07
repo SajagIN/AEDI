@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { toneFor } from "@/lib/decision";
+import { confidence, toneFor } from "@/lib/decision";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
@@ -27,7 +27,7 @@ export default function Adversarial({ health }: { health: Health }) {
 
   return (
     <div className="space-y-5">
-      <Card className="border-signal-info/20 bg-gradient-to-br from-signal-info/[.04] to-transparent">
+      <Card className="border-signal-info/20 bg-signal-info/[.03]">
         <CardHeader>
           <div className="flex items-center gap-2">
             <ShieldCheck size={16} className="text-signal-info" />
@@ -39,6 +39,21 @@ export default function Adversarial({ health }: { health: Health }) {
           </CardDescription>
         </CardHeader>
       </Card>
+
+      {/* The four tiles used to render nothing until the fetch returned, so
+          the page height jumped the moment it did. Same grid, same box sizes,
+          filled with bars until the numbers exist. */}
+      {!d && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <Card key={i}><CardContent className="p-5">
+              <div className="h-2.5 w-24 animate-pulse rounded bg-foreground/[.07]" />
+              <div className="mt-3 h-8 w-16 animate-pulse rounded bg-foreground/[.06]" />
+              <div className="mt-3 h-2.5 w-full animate-pulse rounded bg-foreground/[.05]" />
+            </CardContent></Card>
+          ))}
+        </div>
+      )}
 
       {s && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -108,7 +123,7 @@ export default function Adversarial({ health }: { health: Health }) {
                 {out.result.risk_flags.filter((f: string) => f !== "prompt_injection_attempt").map((f: string) => (
                   <Badge key={f} variant="outline">{f}</Badge>
                 ))}
-                <Badge variant="outline">confidence {out.result.confidence}</Badge>
+                <Badge variant="outline">confidence {confidence(out.result.confidence)}</Badge>
               </div>
               <Separator className="mb-3" />
               <p className="font-quote text-[16px] italic leading-relaxed">{out.result.reason}</p>

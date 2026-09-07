@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import MerchantIntelPanel from "@/components/merchant-intel-panel";
 import Stepper, { Step } from "@/components/reactbits/stepper";
-import { toneFor } from "@/lib/decision";
+import { confidence, toneFor } from "@/lib/decision";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -296,6 +296,24 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
         </CardContent>
       </Card>
 
+      {/* Said once, here, before anything is clicked.
+          This used to be three separate lines that appeared after the fact —
+          a badge, a paragraph under the request, and a second paragraph under
+          that — all circling the same constraint. Volunteering it up front is
+          also the better demo: the limitation is the API's, and saying so
+          first reads as candour rather than as an excuse afterwards. */}
+      <div className="flex gap-3 rounded-lg border border-signal-warn/25 bg-signal-warn/[.05] px-4 py-3">
+        <ShieldAlert size={15} className="mt-0.5 shrink-0 text-signal-warn" />
+        <p className="text-[12.5px] leading-relaxed text-muted-foreground">
+          <b className="font-medium text-foreground">Razorpay has no create-dispute endpoint</b>, in test
+          mode or in production — a chargeback can only arrive from a real issuing bank. Disputes raised
+          here are therefore local, and AEDI&rsquo;s response to those is composed and shown in full but
+          never transmitted. Against one of the{" "}
+          <span className="font-mono text-foreground">{status?.real_disputes ?? 0}</span> real disputes on
+          this account, that same request goes out.
+        </p>
+      </div>
+
       {/* A failing connection has to be loud. The keys being present in .env
           says nothing about whether Razorpay accepts them. */}
       {(conn || status?.reachable === false) && (
@@ -563,9 +581,7 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
                   <div className={`animate-reveal rounded-lg border p-5 ${toneFor(decision.result.decision).panel}`}>
                     <div className="mb-3 flex flex-wrap items-center gap-2">
                       <span className="text-[19px] font-semibold">{nice(decision.result.decision)}</span>
-                      {decision.result.confidence != null && (
-                        <Badge variant="outline">confidence {decision.result.confidence}</Badge>
-                      )}
+                      <Badge variant="outline">confidence {confidence(decision.result.confidence)}</Badge>
                       {decision.result.risk_flags.map((f) => <Badge key={f} variant="bad">{f}</Badge>)}
                     </div>
                     <p className="font-quote text-[16px] italic leading-relaxed">{decision.result.reason}</p>
@@ -575,8 +591,8 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
                     <div className="mb-2 flex flex-wrap items-center gap-2 text-[13px] font-medium">
                       <Gavel size={14} /> What goes on the wire
                       {decision.actionable
-                        ? <Badge variant="good">would be issued</Badge>
-                        : <Badge variant="warn">not issued — local chargeback</Badge>}
+                        ? <Badge variant="good">transmitted</Badge>
+                        : <Badge variant="warn">not transmitted</Badge>}
                     </div>
                     {decision.razorpay_request.path ? (
                       <pre className="overflow-x-auto rounded-lg border border-border bg-secondary p-4 font-mono text-[11.5px] leading-relaxed text-foreground/85">
@@ -586,12 +602,6 @@ ${JSON.stringify(decision.razorpay_request.body ?? {}, null, 2)}`}
                     ) : (
                       <p className="text-[12.5px] text-muted-foreground">
                         Routed to a human &mdash; nothing to send. This is the coverage gap.
-                      </p>
-                    )}
-                    {!decision.actionable && (
-                      <p className="mt-2 text-[11.5px] leading-relaxed text-muted-foreground">
-                        Not sent &mdash; Razorpay has no dispute with this id. Against a real one, this exact
-                        request goes out.
                       </p>
                     )}
                   </div>
@@ -613,7 +623,7 @@ ${JSON.stringify(decision.razorpay_request.body ?? {}, null, 2)}`}
                 </span>
                 <CardTitle>Live activity</CardTitle>
               </div>
-                          </CardHeader>
+            </CardHeader>
             <CardContent className="max-h-[520px] overflow-y-auto">
               {events.length === 0 && (
                 <p className="py-6 text-center text-[12.5px] text-muted-foreground">

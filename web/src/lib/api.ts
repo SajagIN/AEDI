@@ -92,9 +92,6 @@ export const inr = (v: number) => `₹${Math.round(v).toLocaleString("en-IN")}`;
 export const nice = (s?: string | null) => String(s ?? "").replace(/_/g, " ");
 export const num = (v: string | number) => Number(v).toLocaleString("en-IN");
 
-export const decisionTone = (d?: string | null) =>
-  d === "contest" ? "good" : d === "accept_liability" ? "warn" : d === "manual_review" ? "info" : "default";
-
 /* ── Razorpay test-mode bridge ──────────────────────────────────────────
    Objects carry an `origin`: "razorpay" means fetched from the Razorpay API,
    "local" means constructed by the console because Razorpay has no

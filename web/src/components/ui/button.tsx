@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 /* Cobalt is the only bright in the palette, so a filled cobalt button is
    unmistakably THE action on a screen. Everything else is a hairline. */
 const buttonVariants = cva(
-  "group relative inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-mono text-[11.5px] uppercase tracking-[.11em] transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-35 active:translate-y-px",
+  "group relative inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-mono text-[11.5px] uppercase tracking-[.11em] transition-[background-color,border-color,color,box-shadow,transform] duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-35 active:translate-y-px",
   {
     variants: {
       variant: {

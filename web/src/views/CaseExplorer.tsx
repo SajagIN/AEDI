@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { toneFor } from "@/lib/decision";
+import { confidence, toneFor } from "@/lib/decision";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import {
-  analyze, decisionTone, getCase, getCases, nice, num,
+  analyze, getCase, getCases, nice, num,
   type AnalyzeResult, type CaseDetail, type CaseSummary, type Health,
 } from "@/lib/api";
 import { Check, ChevronRight, CircleAlert, Play, Search, TriangleAlert, X, Zap } from "lucide-react";
@@ -21,6 +21,7 @@ const FILTERS = [
 export default function CaseExplorer({ health, split, setSplit }:
   { health: Health; split: string; setSplit: (s: string) => void }) {
   const [cases, setCases] = useState<CaseSummary[]>([]);
+  const [loading, setLoading] = useState(true);
   const [sel, setSel] = useState<string | null>(null);
   const [detail, setDetail] = useState<CaseDetail | null>(null);
   const [run, setRun] = useState<AnalyzeResult | null>(null);
@@ -28,7 +29,10 @@ export default function CaseExplorer({ health, split, setSplit }:
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<string>("all");
 
-  useEffect(() => { setSel(null); setDetail(null); setRun(null); getCases(split).then((d) => setCases(d.cases)); }, [split]);
+  useEffect(() => {
+    setSel(null); setDetail(null); setRun(null); setLoading(true);
+    getCases(split).then((d) => setCases(d.cases)).finally(() => setLoading(false));
+  }, [split]);
 
   const visible = useMemo(() => cases.filter((c) => {
     if (filter === "risk" && !c.risk_flags.length) return false;
@@ -75,7 +79,9 @@ export default function CaseExplorer({ health, split, setSplit }:
             </button>
           ))}
         </div>
-        <span className="ml-auto text-[12.5px] text-muted-foreground tnum">{visible.length} of {cases.length}</span>
+        <span className="ml-auto text-[12.5px] text-muted-foreground tnum">
+          {loading ? "loading\u2026" : `${visible.length} of ${cases.length}`}
+        </span>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[340px_1fr]">
@@ -83,21 +89,36 @@ export default function CaseExplorer({ health, split, setSplit }:
         <Card className="h-[calc(100vh-230px)] overflow-y-auto p-1.5">
           {visible.map((c) => (
             <button key={c.case_id} onClick={() => open(c.case_id)}
-              className={`mb-0.5 w-full rounded-lg px-3.5 py-3 text-left transition-all ${sel === c.case_id ? "bg-signal-info/[.08] ring-1 ring-signal-info/25" : "hover:bg-secondary/60"}`}>
+              className={`mb-0.5 w-full rounded-lg px-3.5 py-3 text-left transition-colors ${sel === c.case_id ? "bg-signal-info/[.08] ring-1 ring-signal-info/25" : "hover:bg-secondary/60"}`}>
               <div className="flex items-center justify-between gap-2">
                 <span className="font-mono text-[13px] font-semibold">{c.case_id}</span>
                 <span className="text-[12px] tnum text-muted-foreground">{num(c.amount)} {c.currency}</span>
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <Badge variant="outline">{c.reason_code}</Badge>
-                {c.ground_truth && <Badge variant={decisionTone(c.ground_truth) as any}>{nice(c.ground_truth)}</Badge>}
+                {c.ground_truth && <Badge variant={toneFor(c.ground_truth).badge}>{nice(c.ground_truth)}</Badge>}
                 {!!c.risk_flags.length && <Badge variant="bad">{c.risk_flags.length} risk</Badge>}
                 {c.agrees === false && <X size={13} className="ml-auto text-signal-bad" />}
                 {c.agrees === true && <Check size={13} className="ml-auto text-signal-good/60" />}
               </div>
             </button>
           ))}
-          {!visible.length && <div className="py-16 text-center text-[13px] text-muted-foreground">No cases match</div>}
+          {loading && [0, 1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="mb-0.5 px-3.5 py-3">
+              <div className="flex justify-between gap-2">
+                <div className="h-3 w-20 animate-pulse rounded bg-foreground/[.07]" />
+                <div className="h-3 w-14 animate-pulse rounded bg-foreground/[.05]" />
+              </div>
+              <div className="mt-2.5 h-4 w-32 animate-pulse rounded bg-foreground/[.05]" />
+            </div>
+          ))}
+          {/* An empty list and a list that has not arrived are different facts
+              and used to look identical. */}
+          {!loading && !visible.length && (
+            <div className="py-16 text-center text-[13px] text-muted-foreground">
+              {cases.length ? "No cases match this filter" : "No cases in this split"}
+            </div>
+          )}
         </Card>
 
         {/* detail */}
@@ -114,7 +135,7 @@ export default function CaseExplorer({ health, split, setSplit }:
                   <CardTitle className="text-[19px]">{detail.case.case_id}</CardTitle>
                   <Badge variant="outline">{detail.case.reason_code} · {detail.reason_requirement.network}</Badge>
                   {detail.ground_truth && (
-                    <Badge variant={decisionTone(detail.ground_truth) as any}>truth: {nice(detail.ground_truth)}</Badge>
+                    <Badge variant={toneFor(detail.ground_truth).badge}>truth: {nice(detail.ground_truth)}</Badge>
                   )}
                 </div>
                 <CardDescription>{detail.reason_requirement.description}</CardDescription>
@@ -300,7 +321,7 @@ export default function CaseExplorer({ health, split, setSplit }:
                         <Badge variant="outline">{run.source === "live" ? "live model call" : "committed run"}</Badge>
                         <div className="ml-auto text-right">
                           <div className="text-[10px] uppercase tracking-[.07em] text-muted-foreground">confidence</div>
-                          <div className="text-[19px] font-semibold tnum">{run.result.confidence ?? "—"}</div>
+                          <div className="text-[19px] font-semibold tnum">{confidence(run.result.confidence)}</div>
                         </div>
                       </div>
                       <div className="mb-3 flex flex-wrap gap-1.5">

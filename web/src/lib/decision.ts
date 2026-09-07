@@ -42,3 +42,10 @@ const TONES: Record<string, DecisionTone> = {
 export function toneFor(decision: string | null | undefined): DecisionTone {
   return TONES[decision ?? ""] ?? TONES.manual_review;
 }
+
+/** A missing confidence is a real state — the model can decline to give one.
+ *  Adversarial printed it raw, so a null rendered as "confidence undefined";
+ *  Case Explorer had its own em-dash fallback. One answer for both. */
+export function confidence(value: number | null | undefined): string {
+  return value == null ? "\u2014" : String(value);
+}
