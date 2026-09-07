@@ -228,6 +228,26 @@
       inset -3px -3px 7px hsl(var(--nm-light) / .85),
       0 0 0 1px hsl(var(--border) / .55);
   }
+  /* A full-bleed bar cannot use the diagonal light the cards use. Its left
+     and right edges run off the screen, so the only part of that light still
+     visible is the vertical component — and the 10px horizontal offset would
+     leave the bottom-left corner lit and the bottom-right corner dark, which
+     is precisely what two rounded bottom corners put on display.
+
+     So: symmetric, downward only. A hairline of white along the top inside
+     edge to read as a lit surface, a tight contact shadow, and a wide soft one
+     for the lift. Fully opaque — this replaced a translucent frosted panel,
+     and a blur is the wrong idea under a soft-UI header: it lets the page show
+     through the one surface that should feel solid enough to rest everything
+     else on. */
+  .nm-bar {
+    background: hsl(var(--card));
+    box-shadow:
+      inset 0 1px 0 hsl(var(--nm-light) / .9),
+      0 2px 5px hsl(var(--nm-dark) / .22),
+      0 10px 26px -8px hsl(var(--nm-dark) / .5);
+  }
+
   /* Held down: 1px of travel plus the light flipping over, which is what
      makes a soft button feel mechanical rather than animated. */
   .nm-press:active:not(:disabled) {
@@ -242,11 +262,11 @@
      would dissolve into one undifferentiated sheet. Give the shapes back as
      system-coloured borders. */
   @media (forced-colors: active) {
-    .nm-raised, .nm-raised-sm, .nm-raised-lg, .nm-inset { box-shadow: none; border: 1px solid CanvasText; }
+    .nm-raised, .nm-raised-sm, .nm-raised-lg, .nm-inset, .nm-bar { box-shadow: none; border: 1px solid CanvasText; }
   }
   /* Asked for more contrast: drop the illusion, keep the structure. */
   @media (prefers-contrast: more) {
-    .nm-raised, .nm-raised-sm, .nm-raised-lg, .nm-inset {
+    .nm-raised, .nm-raised-sm, .nm-raised-lg, .nm-inset, .nm-bar {
       box-shadow: none;
       border: 1px solid hsl(var(--foreground) / .5);
     }
@@ -288,12 +308,6 @@
   }
 
   /* Frosted bar, for the header that sits over scrolling content. */
-  .frost {
-    background: hsl(var(--background) / .78);
-    backdrop-filter: saturate(180%) blur(20px);
-    -webkit-backdrop-filter: saturate(180%) blur(20px);
-  }
-
   /* Scrollable, without the track. For strips like the tab row that must
      still pan on a phone but must not draw a bar across a desktop masthead. */
   .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
