@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import MerchantIntelPanel from "@/components/merchant-intel-panel";
 import Stepper, { Step } from "@/components/reactbits/stepper";
 import { confidence, toneFor } from "@/lib/decision";
@@ -18,7 +17,7 @@ import {
 } from "@/lib/api";
 import {
   AlertTriangle, CheckCircle2, CircleDot, CreditCard, Gavel, Link2, Loader2,
-  Radio, ShieldAlert, Sparkles, Wifi, WifiOff,
+  ShieldAlert, Sparkles, Wifi, WifiOff,
 } from "lucide-react";
 
 declare global { interface Window { Razorpay?: any } }

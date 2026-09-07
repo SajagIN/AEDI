@@ -46,7 +46,10 @@
  *    Inter              body and financial data. Chosen for legibility at
  *                       12px, which is where most of this interface lives.
  *    JetBrains Mono     labels, table heads, and anything computed.
- *    Bodoni Moda        the wordmark, and model-authored prose in italic.
+ *    Bodoni Moda        model-authored prose. Italic only — the upright cut is
+ *                       never rendered, because the provenance grammar sets
+ *                       everything the model wrote in italic, so shipping it
+ *                       was 46 kB of font nobody would ever see.
  */
 @font-face {
   font-family: "Jakarta"; font-style: normal; font-display: swap; font-weight: 200 800;
@@ -70,10 +73,6 @@
    tightened with tracking rather than squeezed with scaleX — compressing a
    Didone horizontally thickens its verticals and destroys the one thing that
    makes it a Bodoni. */
-@font-face {
-  font-family: "Bodoni Moda"; font-style: normal; font-display: swap; font-weight: 400 900;
-  src: url("../node_modules/@fontsource-variable/bodoni-moda/files/bodoni-moda-latin-opsz-normal.woff2") format("woff2-variations");
-}
 /* Lobster is a single 400 cut with no italic and no bold. Nothing may ask it
    for either — a synthesised oblique on a script face slants the connecting
    strokes off their baseline and a synthesised bold fills in the loops. */

@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { getMetrics, inr, nice, pct, type Health, type Metrics } from "@/lib/api";
+import { getMetrics, inr, pct, type Health, type Metrics } from "@/lib/api";
 import { PipelineRail } from "@/components/pipeline-rail";
 
 /*  Evaluation
