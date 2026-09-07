@@ -7,19 +7,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { merchantIntel, merchantIntelStatus, type MerchantIntel } from "@/lib/api";
 import { Search, ExternalLink, ShieldQuestion } from "lucide-react";
 
-/*  Merchant intel panel
- *
- *  Reads consumer complaints off the open web as a LEADING indicator of
- *  merchant risk. Every internal signal — chargeback_rate_90d,
- *  prior_contest_win_rate — is a consequence, and only names a bad merchant
- *  after ninety days of damage. Complaints show up weeks earlier.
- *
- *  Two things this deliberately does not do, both visible on screen:
- *  it never renders a verdict about a business, only counts and links; and
- *  it is labelled escalate-only, because the signal is unverifiable and
- *  gameable and so may buy a case human attention and nothing else.
- */
-
 const TONE = {
   elevated: { v: "warn" as const, label: "Elevated", text: "text-signal-warn",
               note: "Enough complaint-shaped results to be worth a human's eye." },
@@ -113,7 +100,6 @@ export default function MerchantIntelPanel() {
               </ul>
             )}
 
-            {/* Restated on screen, not just in the payload. */}
             <p className="text-[11.5px] leading-relaxed text-muted-foreground">
               {out.advisory}
             </p>

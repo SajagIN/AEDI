@@ -1,20 +1,5 @@
 import { useEffect, useRef } from "react";
 
-/*  CursorGrid — adapted from React Bits
- *
- *  One change, but it is the change that makes it usable as a page
- *  background. The original binds `pointermove` to its own container. Mounted
- *  behind the app it is covered by every card and paragraph on the page, so
- *  it receives almost no events and the lattice only lights up over empty
- *  gutters. Pointer tracking moves to `window`, converted to canvas-local
- *  coordinates, and the wrapper stays `pointer-events: none` so it never
- *  steals a click from a control.
- *
- *  Everything else is the original's, including the part worth keeping: the
- *  RAF loop halts itself the moment no cell is still lit, so a stationary
- *  cursor costs nothing.
- */
-
 type Falloff = "linear" | "smooth" | "sharp";
 
 export interface CursorGridProps {
@@ -178,8 +163,6 @@ export default function CursorGrid({
       raf = requestAnimationFrame(draw);
     };
 
-    /* Window, not container: this sits under the whole app and would other-
-       wise never see a pointer that is over a card. */
     const onMove = (e: PointerEvent) => {
       const rect = canvas.getBoundingClientRect();
       energize(e.clientX - rect.left, e.clientY - rect.top);

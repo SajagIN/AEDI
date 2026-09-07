@@ -1,41 +1,3 @@
-"""
-Razorpay test-mode bridge for the AEDI console.
-
-WHAT IS ACTUALLY REAL HERE
---------------------------
-Razorpay's Disputes API is read-and-respond only:
-
-    GET   /v1/disputes                fetch all
-    GET   /v1/disputes/:id            fetch one
-    POST  /v1/disputes/:id/accept     concede
-    PATCH /v1/disputes/:id/contest    submit evidence
-
-There is deliberately no "create a dispute" endpoint, in test mode or
-otherwise, because a dispute is raised by the cardholder's issuing bank —
-not by the merchant. So a demo cannot manufacture a genuine chargeback.
-
-This module is explicit about that line rather than papering over it. Every
-object it hands to the console carries an `origin` field:
-
-    origin="razorpay"   fetched from the Razorpay API over the network.
-                        A real object with a real id, visible in the
-                        merchant's own Razorpay test dashboard.
-    origin="local"      constructed here, against a real Razorpay payment,
-                        because the API has no way to create one.
-
-The console renders those two differently and never claims the second is
-the first. What stays honest either way is the part being demonstrated: the
-payment is real, the merchant history and reason-code requirements are the
-project's real reference data, and the decision comes from the real
-pipeline. Only the arrival of the chargeback is stood in for.
-
-If a real dispute does exist on the account (Razorpay support can seed one,
-and any live account accumulates them), it is fetched and used in
-preference, and then the contest/accept calls are genuinely issued.
-
-No third-party SDK: this is a few hundred lines of urllib against a
-documented REST API, which is easier to audit than a vendored client.
-"""
 
 import os
 import re
@@ -51,13 +13,10 @@ from collections import deque
 
 DEFAULT_API_BASE = "https://api.razorpay.com/v1"
 
-# Kept small on purpose. A demo that hangs for 30s in front of a judge is a
-# failed demo; better to surface the timeout and let them retry.
 TIMEOUT_SECONDS = 12
 
 
 class RazorpayError(Exception):
-    """An error returned by, or while reaching, the Razorpay API."""
 
     def __init__(self, message, status=None, code=None):
         super().__init__(message)
@@ -70,19 +29,10 @@ class RazorpayError(Exception):
 
 
 class LiveKeyRefused(RazorpayError):
-    """Raised when a production key is supplied. See RazorpayClient."""
+    pass
 
-
-# ── client ────────────────────────────────────────────────────────────────
 
 class RazorpayClient:
-    """Thin, dependency-free client for the endpoints this console uses.
-
-    Refuses to run with a live key. This console creates orders and can
-    submit dispute responses, and `accept` in particular is irreversible and
-    moves real money. A hackathon demo has no business holding production
-    credentials, so the guard is a hard failure rather than a warning.
-    """
 
     def __init__(self, key_id, key_secret, api_base=None):
         key_id = (key_id or "").strip()
@@ -100,7 +50,6 @@ class RazorpayClient:
         self.key_secret = key_secret
         self.api_base = (api_base or os.getenv("RAZORPAY_API_BASE") or DEFAULT_API_BASE).rstrip("/")
 
-    # -- plumbing ----------------------------------------------------------
 
     @property
     def _auth_header(self):
@@ -140,10 +89,8 @@ class RazorpayClient:
         except json.JSONDecodeError:
             raise RazorpayError("Razorpay returned a response that was not JSON") from None
 
-    # -- endpoints ---------------------------------------------------------
 
     def ping(self):
-        """Cheapest call that proves the credentials work."""
         self._call("GET", "/payments", params={"count": 1})
         return True
 
@@ -171,10 +118,7 @@ class RazorpayClient:
         return self._call("PATCH", f"/disputes/{dispute_id}/contest", body=payload)
 
 
-# ── configuration ─────────────────────────────────────────────────────────
-
 def read_config(env=None):
-    """Inspect the environment without raising. Drives the console's status card."""
     env = env if env is not None else os.environ
     key_id = (env.get("RAZORPAY_KEY_ID") or "").strip()
     secret = (env.get("RAZORPAY_KEY_SECRET") or "").strip()
@@ -200,7 +144,6 @@ def read_config(env=None):
 
 
 def mask_key(key_id):
-    """rzp_test_Example123456 -> rzp_test_…3456. Never echo a whole credential."""
     key_id = (key_id or "").strip()
     if not key_id:
         return None
@@ -218,21 +161,13 @@ def client_from_env(env=None):
 
 
 def verify_webhook_signature(body_bytes, signature, secret):
-    """Razorpay signs webhook bodies with HMAC-SHA256 over the raw payload."""
     if not secret or not signature:
         return False
     digest = hmac.new(secret.encode("utf-8"), body_bytes, hashlib.sha256).hexdigest()
     return hmac.compare_digest(digest, signature)
 
 
-# ── diagnosis ─────────────────────────────────────────────────────────────
-#
-# "502 Bad Gateway" tells an operator nothing. Every failure mode below has a
-# different fix, and the operator is usually on their own machine where no
-# amount of server logging helps them. So each one gets named, with the fix.
-
 _DIAGNOSES = (
-    # (predicate over (status, code, message_lower), short cause, what to do)
     (lambda s, c, m: "certificate_verify_failed" in m or "certificate verify failed" in m,
      "Your Python cannot verify HTTPS certificates.",
      "This is a local Python install problem, not a Razorpay one. On macOS run "
@@ -289,11 +224,6 @@ _DIAGNOSES = (
 
 
 def diagnose(exc):
-    """Turn a RazorpayError into (cause, fix) in plain language.
-
-    Returns ("", "") when the failure is not one of the known shapes, so the
-    caller falls back to Razorpay's own description rather than inventing one.
-    """
     status = getattr(exc, "status", None)
     code = getattr(exc, "code", None) or ""
     message = str(getattr(exc, "message", exc) or "").lower()
@@ -307,7 +237,6 @@ def diagnose(exc):
 
 
 def error_payload(exc):
-    """The JSON body returned to the console for any Razorpay failure."""
     cause, fix = diagnose(exc)
     payload = exc.as_dict()
     payload["cause"] = cause
@@ -315,10 +244,6 @@ def error_payload(exc):
     return payload
 
 
-# ── mapping a Razorpay payment onto an AEDI case ──────────────────────────
-
-# Descriptions are the same phrasings the dataset uses, so a live case reads
-# identically to a dataset case and the same evidence parser handles both.
 EVIDENCE_CATALOG = {
     "proof_of_delivery": "Signed delivery confirmation dated within the expected window",
     "shipping_carrier_record": "Carrier tracking record showing package scanned delivered",
@@ -333,11 +258,6 @@ EVIDENCE_CATALOG = {
     "service_completion_record": "Technician check-in/check-out record for the scheduled service",
 }
 
-# Razorpay's own dispute reason codes are coarse (`chargeback`, `fraud`,
-# `pre_arbitration`, `retrieval`). The network reason codes the pipeline
-# reasons about are finer-grained, and are what determine which evidence is
-# required. Where a real dispute arrives we map its phase to a sensible
-# default and let the operator correct it.
 PHASE_TO_REASON_CODE = {
     "fraud": "10.4",
     "chargeback": "13.1",
@@ -352,8 +272,6 @@ def paise_to_rupees(paise):
 
 
 def format_evidence_items(types):
-    """Render selected evidence types into the pipe-delimited column format
-    `risk_signals.parse_evidence_items` already understands."""
     out = []
     for t in types or []:
         desc = EVIDENCE_CATALOG.get(t)
@@ -364,19 +282,10 @@ def format_evidence_items(types):
 
 def payment_to_case(payment, *, merchant_id, reason_code, narrative="",
                     evidence_types=None, case_id=None, original_amount=None):
-    """Build a case row shaped exactly like a row of `dataset/*/cases.csv`.
-
-    The point of matching that shape exactly is that nothing downstream needs
-    a special path for live data: `build_context`, `risk_signals` and
-    `analyze_case` all receive the structure they already handle.
-    """
     amount = paise_to_rupees(payment.get("amount", 0))
     created = payment.get("created_at")
     date = time.strftime("%Y-%m-%d", time.gmtime(created)) if created else time.strftime("%Y-%m-%d")
 
-    # `method` is Razorpay's vocabulary (card, upi, netbanking, wallet, emi).
-    # The dataset only ever contains card/upi/netbanking; anything else is
-    # passed through rather than silently coerced into a wrong value.
     method = payment.get("method") or "card"
 
     return {
@@ -394,7 +303,6 @@ def payment_to_case(payment, *, merchant_id, reason_code, narrative="",
 
 
 def dispute_from_razorpay(dispute):
-    """Normalise a genuine Razorpay dispute object for the console."""
     return {
         "origin": "razorpay",
         "dispute_id": dispute.get("id"),
@@ -412,11 +320,6 @@ def dispute_from_razorpay(dispute):
 
 
 def local_dispute(payment, *, reason_code, phase="chargeback"):
-    """A stand-in chargeback against a real Razorpay payment.
-
-    Marked `origin="local"` and `actionable=False` so no code path can
-    mistake it for something the Razorpay API will accept an action on.
-    """
     return {
         "origin": "local",
         "dispute_id": f"local_disp_{payment.get('id', 'unknown')}",
@@ -434,14 +337,6 @@ def local_dispute(payment, *, reason_code, phase="chargeback"):
 
 
 def contest_payload(dispute, result, case_row, evidence_types):
-    """The exact body that would go to PATCH /v1/disputes/:id/contest.
-
-    Razorpay wants document ids obtained from the Documents API for each
-    proof field. We have evidence *records*, not uploaded files, so the
-    document ids are left empty and the summary carries the agent's reason.
-    Showing the payload — rather than pretending the upload happened — is
-    the honest version of "closing the loop".
-    """
     summary = (result.get("reason") or "").strip()
     return {
         "amount": dispute.get("amount_paise"),
@@ -457,15 +352,7 @@ def contest_payload(dispute, result, case_row, evidence_types):
     }
 
 
-# ── event log ─────────────────────────────────────────────────────────────
-
 class EventLog:
-    """A bounded, thread-safe ring buffer the console polls.
-
-    This is what makes the tab feel live: every order, payment, webhook,
-    chargeback and agent decision appends here with a monotonically
-    increasing id, and the UI long-polls for anything newer than it has.
-    """
 
     def __init__(self, maxlen=200):
         self._events = deque(maxlen=maxlen)

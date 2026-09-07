@@ -1,5 +1,3 @@
-/* Every number rendered by this console comes from these endpoints, which are
-   served by app/server.py calling the real pipeline / evaluation modules. */
 
 export type Health = {
   mode: "live" | "replay";
@@ -32,9 +30,6 @@ export type CaseDetail = {
 
 export type AnalyzeResult = {
   source: string;
-  /* True when the pipeline exhausted its retries and returned the safe
-     manual_review placeholder. manual_review is also a legitimate verdict, so
-     without this flag the two are indistinguishable in the UI. */
   fallback?: boolean;
   result: { decision: string; evidence_sufficiency: string; risk_flags: string[]; reason: string; confidence: number | null; cited_evidence_ids: string };
   cited_evidence_ids: string[];
@@ -86,16 +81,10 @@ export const analyze = (split: string, case_id: string, mode: string) =>
 export const injectionTest = (narrative: string) =>
   j("/api/injection-test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ narrative }) }) as Promise<any>;
 
-/* formatting */
 export const pct = (v: number | null | undefined) => (v == null ? "n/a" : `${Math.round(v * 100)}%`);
 export const inr = (v: number) => `₹${Math.round(v).toLocaleString("en-IN")}`;
 export const nice = (s?: string | null) => String(s ?? "").replace(/_/g, " ");
 export const num = (v: string | number) => Number(v).toLocaleString("en-IN");
-
-/* ── Razorpay test-mode bridge ──────────────────────────────────────────
-   Objects carry an `origin`: "razorpay" means fetched from the Razorpay API,
-   "local" means constructed by the console because Razorpay has no
-   dispute-create endpoint. The UI must never render the two identically. */
 
 export type RzpStatus = {
   state: "unconfigured" | "incomplete" | "refused" | "unknown_key" | "configured";
@@ -110,8 +99,6 @@ export type RzpStatus = {
   fix?: string;
 };
 
-/* Every Razorpay failure comes back shaped like this — `cause` and `fix` are
-   plain-language, so the UI never has to render a bare 502 at the user. */
 export type RzpFailure = {
   error: string; status: number | null; code: string | null;
   cause?: string; fix?: string;
@@ -191,10 +178,6 @@ export const paise = (v: number) => inr((v || 0) / 100);
 export const clock = (ts: number) =>
   new Date(ts * 1000).toLocaleTimeString("en-IN", { hour12: false });
 
-/* ── merchant adverse-media intel (SerpAPI) ────────────────────────────────
-   Escalate-only by contract: this signal may route a case to a human and may
-   never clear one. The server restates that in every payload; the UI restates
-   it on screen. See app/merchant_intel.py. */
 export type IntelResult = {
   title: string; link: string; domain: string; snippet: string;
   on_complaint_site: boolean; matched_terms: string[];

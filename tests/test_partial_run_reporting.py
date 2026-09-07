@@ -1,16 +1,3 @@
-"""
-A pipeline run that stops early leaves a partial output.csv.
-
-Observed in the field: one scored case on `dev` made the console select that
-split, report coverage 0%, and project INR 0 saved per month — while the
-complete `held_out` split sat there unused. Two faults: a stub was treated as
-"has predictions", and a monthly figure was extrapolated from a single case.
-
-The cases that do get scored are whichever ones the run reached before it
-stopped — file order, not a random sample — so nothing may be extrapolated
-from them. These tests pin that the API reports completeness honestly enough
-for the UI to decline.
-"""
 
 import csv
 import sys
@@ -37,7 +24,6 @@ def server_module():
 
 @pytest.fixture
 def dev_output():
-    """Write a dev/output.csv, and always restore the tree afterwards."""
     path = REPO_ROOT / "dataset" / "dev" / "output.csv"
     backup = path.with_suffix(".csv.testbak")
     existed = path.exists()
@@ -69,8 +55,6 @@ def _json(resp):
     return json.loads(resp.data.decode("utf-8"))
 
 
-# ── health ────────────────────────────────────────────────────────────────
-
 def test_health_distinguishes_a_stub_from_a_finished_run(server_module, dev_output):
     total = dev_output(1)
     body = _json(server_module.app.test_client().get("/api/health"))
@@ -83,7 +67,7 @@ def test_health_distinguishes_a_stub_from_a_finished_run(server_module, dev_outp
 
 
 def test_health_marks_a_finished_run_complete(server_module, dev_output):
-    total = dev_output(10_000)          # capped at the number of dev cases
+    total = dev_output(10_000)
     dev = _json(server_module.app.test_client().get("/api/health"))["splits"]["dev"]
     assert dev["scored"] == total
     assert dev["complete"] is True
@@ -95,11 +79,7 @@ def test_held_out_is_reported_complete_as_shipped(server_module):
     assert held["scored"] == held["cases"] == 50
 
 
-# ── the split the console should land on ──────────────────────────────────
-
 def test_the_complete_split_outranks_a_stub(server_module, dev_output):
-    """Mirrors the selection the UI makes. `dev` sorts first alphabetically and
-    would win a naive `find(has_predictions)`, which is exactly the bug."""
     dev_output(1)
     splits = _json(server_module.app.test_client().get("/api/health"))["splits"]
 
@@ -112,14 +92,11 @@ def test_the_complete_split_outranks_a_stub(server_module, dev_output):
 
 
 def test_a_naive_first_with_predictions_would_have_picked_the_stub(server_module, dev_output):
-    """Guards the regression itself: proves the old rule really was wrong."""
     dev_output(1)
     splits = _json(server_module.app.test_client().get("/api/health"))["splits"]
     naive = next(name for name, v in splits.items() if v["has_predictions"])
     assert naive == "dev", "if this stops being true the regression test is toothless"
 
-
-# ── metrics ───────────────────────────────────────────────────────────────
 
 def test_metrics_reports_the_run_as_incomplete(server_module, dev_output):
     total = dev_output(1)
@@ -132,7 +109,6 @@ def test_metrics_reports_the_run_as_incomplete(server_module, dev_output):
 
 def test_metrics_on_a_partial_run_scores_baselines_on_the_whole_split(
         server_module, dev_output):
-    """This is why the numbers are not comparable and the UI must say so."""
     dev_output(1)
     blocks = _json(server_module.app.test_client().get("/api/metrics?split=dev"))["blocks"]
     agent, rules, allrev = blocks

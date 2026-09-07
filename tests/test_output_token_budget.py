@@ -1,17 +1,3 @@
-"""
-Regression tests for the adaptive output-token budget.
-
-Gemini's free tier enforces an output-tokens-per-minute ceiling that can sit
-BELOW this pipeline's per-request max_tokens. The API then rejects every call
-with a 429 before generating anything, and because the old retry path slept and
-resent an identical request, the run could never recover — 100 cases in, 100
-fallback rows out, no successful call ever placed.
-
-These tests pin the recovery behaviour: parse the real limit out of the
-rejection, shrink the request, and retry immediately rather than sleeping.
-
-No API calls, no network.
-"""
 
 import importlib.util
 import sys
@@ -39,7 +25,6 @@ ORDINARY_RATE_LIMIT = (
 
 @pytest.fixture
 def main(monkeypatch):
-    """Fresh module per test — the ceiling is process-global by design."""
     monkeypatch.delenv("AEDI_MAX_OUTPUT_TOKENS", raising=False)
     spec = importlib.util.spec_from_file_location(
         "aedi_main_under_test", REPO_ROOT / "code" / "main.py")
@@ -66,9 +51,7 @@ def test_ordinary_rate_limit_is_not_mistaken_for_an_otpm_cap(main):
 
 
 def test_otpm_rejection_retries_immediately_instead_of_sleeping(main):
-    """The whole bug: sleeping and resending an identical request never
-    recovers, because the rejection is deterministic, not congestion."""
-    pool = main.KeyPool.__new__(main.KeyPool)   # no env keys needed
+    pool = main.KeyPool.__new__(main.KeyPool)
     pool._dead_until = {}
     assert main._handle_error(pool, "GEMINI_API_KEY", OTPM_ERROR) == 0
     assert pool._dead_until == {}, "an oversized request must not kill the key"
@@ -118,21 +101,12 @@ def _load_fresh(alias="aedi_main_reload"):
 
 
 def _DummyPool():
-    """A KeyPool that needs no env keys, so mark_dead() can be observed."""
     import types
     pool = types.SimpleNamespace(_dead_until={}, dead=[])
     pool.mark_dead = lambda name, secs: (pool._dead_until.__setitem__(name, secs),
                                          pool.dead.append(name))
     return pool
 
-
-# ── the repeat-OTPM hot loop ──────────────────────────────────────────────
-#
-# Observed in a real run: the ceiling was lowered to the account's limit of
-# 1000, and every later OTPM rejection still returned a 0-second wait. Those
-# rejections are a different failure — the per-minute output budget is spent,
-# not the request oversized — so retrying instantly burned all three attempts
-# in about a second and landed on the fallback row.
 
 OTPM_1000 = (
     "Error code: 429 - {'error': {'message': \"Request too large for model "
@@ -150,11 +124,9 @@ def test_first_otpm_rejection_resizes_and_retries_immediately(main):
 
 
 def test_second_identical_rejection_waits_instead_of_spinning(main):
-    """The regression. Ceiling is already 1000 and cannot go lower, so a zero
-    wait would retry an identical request that cannot succeed."""
     pool = _DummyPool()
-    main._handle_error(pool, "GEMINI_API_KEY", OTPM_1000)      # discovery
-    wait = main._handle_error(pool, "GEMINI_API_KEY", OTPM_1000)  # budget spent
+    main._handle_error(pool, "GEMINI_API_KEY", OTPM_1000)
+    wait = main._handle_error(pool, "GEMINI_API_KEY", OTPM_1000)
 
     assert wait > 0, "a repeat OTPM rejection must back off, not hot-loop"
     assert wait >= 30, "OTPM refills on a minute boundary — a token wait is pointless"
@@ -187,8 +159,6 @@ def test_is_output_token_limit_recognises_it_either_way(main):
 
 
 def test_a_pinned_ceiling_still_backs_off_rather_than_spinning(main, monkeypatch):
-    """With AEDI_MAX_OUTPUT_TOKENS already at the limit, the very first
-    rejection cannot resize anything — it must wait immediately."""
     monkeypatch.setenv("AEDI_MAX_OUTPUT_TOKENS", "1000")
     mod = _load_fresh()
     assert mod._OUTPUT_TOKEN_CEILING == 1000
@@ -210,12 +180,7 @@ def test_blank_model_env_does_not_produce_an_empty_model(monkeypatch):
     assert _load_fresh().MODEL == "gemini-3.8-flash"
 
 
-# ── the interactive wait cap ──────────────────────────────────────────────
-
 def test_analyze_case_refuses_a_wait_longer_than_the_caller_allows(main, monkeypatch):
-    """A 429 can ask for a multi-minute wait, and the OTPM-exhausted path asks
-    for a minute. Correct for the batch runner; it must not park a browser
-    request for that long."""
     slept = []
     monkeypatch.setattr(main.time, "sleep", lambda s: slept.append(s))
     monkeypatch.setattr(main, "build_messages", lambda row, ctx: [])

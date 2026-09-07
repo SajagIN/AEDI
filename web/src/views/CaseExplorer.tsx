@@ -61,7 +61,6 @@ export default function CaseExplorer({ health, split, setSplit }:
 
   return (
     <div className="space-y-5">
-      {/* toolbar */}
       <div className="flex flex-wrap items-center gap-3">
         <Select aria-label="Case split" value={split} onChange={(e) => setSplit(e.target.value)}>
           {Object.entries(health.splits).map(([k, v]) => (
@@ -73,9 +72,6 @@ export default function CaseExplorer({ health, split, setSplit }:
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search case, merchant, reason code…"
             className="w-[280px] pl-9" />
         </div>
-        {/* Same one-chip-that-travels as the tab strip. This group is where
-            the idiom started, so it would be odd for it to be the one place
-            that still swaps a static highlight. */}
         <div className="nm-inset inline-flex rounded-full p-1.5">
           {FILTERS.map((f) => (
             <button key={f.id} onClick={() => setFilter(f.id)}
@@ -99,15 +95,10 @@ export default function CaseExplorer({ health, split, setSplit }:
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[340px_1fr]">
-        {/* list */}
         <Card className="h-[calc(100vh-230px)] overflow-y-auto p-1.5">
           {visible.map((c) => (
             <button key={c.case_id} onClick={() => open(c.case_id)}
               aria-current={sel === c.case_id ? "true" : undefined}
-              /* Selected means pressed in, everywhere in this interface — the
-                 segmented filter above and the evidence toggles on the Live tab
-                 already read that way, and a tinted-with-a-ring row was the last
-                 place still saying it differently. */
               className={`mb-1 w-full rounded-lg px-3.5 py-3 text-left transition-[box-shadow,color] ${sel === c.case_id ? "nm-inset text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
               <div className="flex items-center justify-between gap-2">
                 <span className="font-mono text-[13px] font-semibold">{c.case_id}</span>
@@ -131,8 +122,6 @@ export default function CaseExplorer({ health, split, setSplit }:
               <div className="mt-2.5 h-4 w-32 animate-pulse rounded bg-foreground/[.05]" />
             </div>
           ))}
-          {/* An empty list and a list that has not arrived are different facts
-              and used to look identical. */}
           {!loading && !visible.length && (
             <div className="py-16 text-center text-[13px] text-muted-foreground">
               {cases.length ? "No cases match this filter" : "No cases in this split"}
@@ -140,14 +129,12 @@ export default function CaseExplorer({ health, split, setSplit }:
           )}
         </Card>
 
-        {/* detail */}
         {!detail ? (
           <div className="flex h-[420px] items-center justify-center rounded-lg border border-dashed border-border text-[14px] text-muted-foreground">
             <ChevronRight size={16} className="mr-1.5" /> Select a case to inspect it
           </div>
         ) : (
           <div className="space-y-5 animate-reveal">
-            {/* header + facts */}
             <Card>
               <CardHeader>
                 <div className="flex flex-wrap items-center gap-2.5">
@@ -192,7 +179,6 @@ export default function CaseExplorer({ health, split, setSplit }:
               </CardContent>
             </Card>
 
-            {/* signals */}
             <Card>
               <CardHeader>
                 <CardTitle>
@@ -210,13 +196,6 @@ export default function CaseExplorer({ health, split, setSplit }:
                   { l: "Amount anomaly", v: String(s?.amount_anomaly), bad: !!s?.amount_anomaly },
                   { l: "Merchant repeat pattern", v: String(s?.merchant_repeat_pattern), bad: !!s?.merchant_repeat_pattern },
                 ].map((x) => (
-                  /* Recessed, not raised. These are readouts — a value the code
-                     computed and is now displaying — and a display milled into
-                     the panel is the soft-UI form for that. Raised is reserved
-                     for things that assert or invite a click. The tint is gone
-                     for the same reason it left the pills: a 5% wash on a sheet
-                     this close to it is not a colour, it is a smudge, and the
-                     value text carries the signal at 5.4:1 either way. */
                   <div key={x.l} className="nm-inset rounded-xl p-4">
                     <div className="text-[10.5px] font-medium uppercase tracking-[.06em] text-muted-foreground">{x.l}</div>
                     <div className={`mt-1.5 font-mono text-[15px] font-medium ${x.bad ? "text-signal-bad" : "text-signal-good"}`}>{x.v}</div>
@@ -225,7 +204,6 @@ export default function CaseExplorer({ health, split, setSplit }:
               </CardContent>
             </Card>
 
-            {/* evidence */}
             <Card>
               <CardHeader>
                 <CardTitle>
@@ -266,7 +244,6 @@ export default function CaseExplorer({ health, split, setSplit }:
               </CardContent>
             </Card>
 
-            {/* narrative */}
             <Card>
               <CardHeader>
                 <CardTitle>
@@ -285,7 +262,6 @@ export default function CaseExplorer({ health, split, setSplit }:
               </CardContent>
             </Card>
 
-            {/* run */}
             <Card>
               <CardHeader><CardTitle>Run the agent</CardTitle></CardHeader>
               <CardContent>
@@ -313,8 +289,6 @@ export default function CaseExplorer({ health, split, setSplit }:
                       Safe fallback, not a judgement — the pipeline fails toward a person
                       rather than guessing.
                     </p>
-                    {/* The cause, not a token to go and grep for. Telling someone to
-                        read a server log is no help when the run happened in a browser. */}
                     <p className="mt-2 break-words font-mono text-[11px] leading-relaxed text-signal-bad/90">
                       {run.trace?.find((t) => t.step === "safe_fallback")?.detail ?? "No cause was captured."}
                     </p>

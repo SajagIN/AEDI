@@ -7,37 +7,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { getMetrics, inr, pct, type Health, type Metrics } from "@/lib/api";
 import { PipelineRail } from "@/components/pipeline-rail";
 
-/*  Evaluation
- *
- *  Rewritten because the person who built this could not read it. If the
- *  author cannot, a judge with ninety seconds certainly cannot.
- *
- *  What was wrong was not density, it was framing. The page rendered three
- *  identical blocks — agent, rules baseline, all-manual baseline — each with
- *  its own confusion matrix and five progress bars. Three identical blocks
- *  side by side is an invitation to compare them cell by cell, which is the
- *  one reading the numbers do not support, and fifteen progress bars say
- *  nothing that the fifteen percentages next to them were not already saying.
- *
- *  So: one table, plain-English column heads. The ML vocabulary is still
- *  here — precision, recall, the matrix — but demoted below a fold, because
- *  it is what a reviewer checks second, not what a reader needs first.
- *
- *  Then it had to be rewritten again, because the simplification broke the
- *  argument. The first version showed coverage, false positives, false
- *  negatives and priced cost. Every system scores zero on both error types,
- *  so those two columns discriminated nothing while occupying a third of the
- *  table, and the rules-only baseline — which decides everything and is never
- *  marked wrong — came out looking strictly better than the agent at ₹0
- *  against ₹3,600. The column that separates them is the one that had been
- *  cut: how many cases that needed a human got decided anyway. Rules-only
- *  walks past all 17 of them because it has no manual_review output to give.
- *  The agent walks past 10. That difference is ₹11,953 per 100 cases and it
- *  is the whole reason the model is here.
- */
-
-/* The jargon still matters to a technical reader, so nothing is renamed away.
-   Plain phrase leads, the real term follows in mono underneath. */
 const COLUMNS = [
   { key: "auto", head: "Decided on its own", term: "coverage",
     help: "Closed without a human. Cheap, but only safe on a case that could be closed." },
@@ -63,9 +32,6 @@ export default function Evaluation({ health, split, setSplit }:
 
   const agent = m?.available ? m.blocks[0] : null;
 
-  /* How many cases in this split actually needed a human — the manual_review
-     row of the confusion matrix. It is the denominator the bypassed count is
-     only meaningful against. */
   const needHuman = m?.available
     ? m.decision_values.reduce((t, p) => t + m.blocks[0].matrix["manual_review"][p], 0)
     : 0;
@@ -84,11 +50,6 @@ export default function Evaluation({ health, split, setSplit }:
       }))
     : [];
 
-  /* Not a fourth system — the same agent with its escalation threshold moved
-     so the cases it currently guesses on go to a person instead. Arithmetic on
-     measured numbers, not a second run, and labelled as such: every bypassed
-     case becomes one more review at the model's own price, and the exposure
-     it was carrying goes to zero. */
   if (m?.available && agent && agent.cost.n_bypassed_review > 0) {
     const manual = agent.cost.n_manual_review + agent.cost.n_bypassed_review;
     rows.push({
@@ -110,7 +71,6 @@ export default function Evaluation({ health, split, setSplit }:
 
   return (
     <div className="space-y-10 pb-14">
-      {/* ── which set of cases ──────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-2">
         <Select aria-label="Case split" value={split} onChange={(e) => setSplit(e.target.value)}>
           {Object.entries(health.splits).map(([k, v]) => (
@@ -121,8 +81,6 @@ export default function Evaluation({ health, split, setSplit }:
         <span className="dateline ml-auto text-muted-foreground/50">computed live</span>
       </div>
 
-      {/* Loading state matches the shape of the table it replaces, so the
-          page does not jump when the numbers land. */}
       {!m && (
         <div className="space-y-3">
           <div className="h-3 w-40 animate-pulse rounded bg-foreground/[.06]" />
@@ -153,7 +111,6 @@ export default function Evaluation({ health, split, setSplit }:
         </Card>
       )}
 
-      {/* ── the answer, in a sentence ───────────────────────────────────── */}
       {agent && (
         <div className="max-w-[72ch] space-y-3 text-[15px] leading-relaxed">
           <p>
@@ -165,7 +122,6 @@ export default function Evaluation({ health, split, setSplit }:
         </div>
       )}
 
-      {/* ── one table, not three cards ──────────────────────────────────── */}
       {m?.available && (
         <div className="-mx-2 overflow-x-auto px-2">
           <table className="w-full min-w-[880px] border-collapse text-left">
@@ -231,9 +187,6 @@ export default function Evaluation({ health, split, setSplit }:
         </div>
       )}
 
-      {/* Tooltips die on touch and vanish in a screenshot of a slide, which is
-          how half of these numbers get read. Same definitions, in the flow,
-          wherever hover cannot be assumed. */}
       {m?.available && (
         <dl className="grid gap-x-8 gap-y-2 border-t border-border pt-5 sm:grid-cols-2 lg:hidden">
           {COLUMNS.map((c) => (
@@ -245,9 +198,6 @@ export default function Evaluation({ health, split, setSplit }:
         </dl>
       )}
 
-      {/* Promoted out of the disclosure it started in. It is the number that
-          argues against us, and a caveat you have to click for is a caveat you
-          are half-hiding. */}
       {agent && (
         <div className="border-l-2 border-signal-warn/40 pl-5">
           <div className="dateline mb-2 text-signal-warn/80">

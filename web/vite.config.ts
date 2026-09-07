@@ -2,9 +2,6 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath, URL } from "node:url";
 
-// Builds straight into app/static/, so `python app/server.py` serves the
-// production bundle with no Node installed. `npm run dev` proxies /api to the
-// Flask process for hot-reload work.
 export default defineConfig({
   plugins: [react()],
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },

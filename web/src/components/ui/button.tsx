@@ -3,8 +3,6 @@ import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
-/* Cobalt is the only bright in the palette, so a filled cobalt button is
-   unmistakably THE action on a screen. Everything else is a hairline. */
 const buttonVariants = cva(
   "group relative inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-action text-[12.5px] font-semibold tracking-[.01em] nm-press transition-[background-color,border-color,color,box-shadow,transform] duration-200 disabled:pointer-events-none disabled:opacity-40",
   {

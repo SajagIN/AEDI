@@ -1,21 +1,3 @@
-"""
-A small, faithful stand-in for the Razorpay REST API.
-
-Why this exists: the AEDI console talks to Razorpay over the network, and
-network calls are exactly the thing you cannot exercise in CI, on a plane, or
-inside a sandbox with no route to api.razorpay.com. Without a stand-in, the
-whole Razorpay bridge would ship untested and be debugged for the first time
-in front of an audience.
-
-It implements only the endpoints `app/razorpay_live.py` actually calls, with
-the response shapes, id prefixes, Basic-auth behaviour and error envelope
-documented at https://razorpay.com/docs/api/ — including the important one:
-there is no create-a-dispute endpoint, so requesting it 404s exactly as the
-real API does.
-
-Point the client at it with RAZORPAY_API_BASE=http://127.0.0.1:<port>.
-This is test scaffolding; it is never imported by the console at runtime.
-"""
 
 import json
 import base64
@@ -34,13 +16,12 @@ def _rid(prefix):
 
 
 class FakeRazorpayState:
-    """Mutable store shared by the handler. Tests poke at this directly."""
 
     def __init__(self):
         self.orders = {}
         self.payments = {}
         self.disputes = {}
-        self.calls = []          # (method, path) — lets tests assert what was hit
+        self.calls = []
         self.key_id = TEST_KEY_ID
         self.key_secret = TEST_KEY_SECRET
 
@@ -89,9 +70,8 @@ class _Handler(BaseHTTPRequestHandler):
     state = None
 
     def log_message(self, *args):
-        pass  # keep pytest output clean
+        pass
 
-    # -- helpers -----------------------------------------------------------
 
     def _send(self, status, payload):
         body = json.dumps(payload).encode("utf-8")
@@ -132,7 +112,6 @@ class _Handler(BaseHTTPRequestHandler):
         self.state.calls.append((method, path))
 
         if not self._authed():
-            # Matches the real API: bad credentials are a 401 with this code.
             return self._error(401, "BAD_REQUEST_ERROR",
                                "Authentication failed due to incorrect key id or secret")
 
@@ -208,9 +187,6 @@ class _Handler(BaseHTTPRequestHandler):
                 dispute["evidence"]["submitted_at"] = 1780000300
             return self._send(200, dispute)
 
-        # The real API has no dispute-create endpoint. Reproducing that
-        # exactly is the single most important behaviour of this mock: it is
-        # what the console's honesty about local chargebacks rests on.
         return self._error(404, "BAD_REQUEST_ERROR", f"no handler for {method} {path}")
 
     def do_GET(self):
@@ -224,7 +200,6 @@ class _Handler(BaseHTTPRequestHandler):
 
 
 class FakeRazorpay:
-    """Context manager that runs the mock on an ephemeral port."""
 
     def __init__(self, port=0, host="127.0.0.1"):
         self.state = FakeRazorpayState()

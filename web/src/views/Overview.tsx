@@ -9,18 +9,6 @@ import StrokeText from "@/components/reactbits/stroke-text";
 import { getMetrics, inr, pct, type Metrics } from "@/lib/api";
 import { TriangleAlert } from "lucide-react";
 
-/*  Overview
- *
- *  Two things live on this screen: whether the agent is accurate, and what
- *  that is worth per month. Nothing else.
- *
- *  What used to be here and isn't any more — the pipeline walkthrough, the
- *  judgment-vs-arithmetic split, the injection examples — was duplicating
- *  tabs that demonstrate the same thing with live data. Case Explorer runs
- *  the trace. Adversarial runs the attacks. Explaining them here as well was
- *  asking the reader to take on faith what the next tab simply shows.
- */
-
 export default function Overview({ split }: { split: string }) {
   const [m, setM] = useState<Metrics | null>(null);
   const [vol, setVol] = useState(4000);
@@ -39,10 +27,6 @@ export default function Overview({ split }: { split: string }) {
   const saved = (perCaseToday - perCaseAgent) * vol;
   const exposure = agent ? (agent.cost.bypassed_review_exposure_per_100_inr / 100) * vol : 0;
 
-  /* The remedy for the exposure, priced. Escalating the bypassed cases to a
-     human removes the disclosed risk entirely and costs one more review each
-     - so the saving survives, smaller. Stating both halves is the difference
-     between "our net is negative" and "we know where the dial sits". */
   const bypassed = agent?.cost.n_bypassed_review ?? 0;
   const reviewRate = m?.available ? m.cost_model.manual_review_inr : 150;
   const perCaseSafe = agent
@@ -51,22 +35,12 @@ export default function Overview({ split }: { split: string }) {
   const coverageSafe = agent
     ? (agent.n - agent.cost.n_manual_review - bypassed) / agent.n : 0;
 
-  /* A partial run is not a sample — the scored cases are whichever ones the
-     pipeline reached before it stopped. Projecting from them would be a
-     confident-looking wrong number. */
   const total = m?.n_cases ?? 0;
   const scored = m?.n_scored ?? 0;
   const projectable = !!agent && scored > 0 && scored >= total;
 
   const int = (n: number) => Math.round(n).toLocaleString("en-IN");
 
-  /* False positives and false negatives used to be two of these four. They are
-     one fact, not two, and on this dataset it is a fact the pipeline can barely
-     get wrong: the ground-truth rule separates contest from accept_liability on
-     evidence sufficiency alone, and the pipeline computes that in code and then
-     writes it over the model's answer. Giving a near-guaranteed zero half the
-     hero was the weakest claim on the page. Merged into one tile, and the slot
-     it freed goes to a number that moves. */
   const KPIS = agent ? [
     { l: "Coverage", v: agent.coverage, f: pct, t: "plain",
       why: "Decided automatically instead of routing to a human." },
@@ -80,20 +54,7 @@ export default function Overview({ split }: { split: string }) {
 
   return (
     <div className="space-y-24 pb-16">
-      {/* ── the claim ─────────────────────────────────────────────────── */}
       <div className="reveal pt-16 sm:pt-24" style={{ "--i": 0 } as React.CSSProperties}>
-        {/* The first word is drawn rather than set: the outline writes itself
-            on in cobalt and the fill floods after it, which is the one place
-            on this console where an animation is allowed to be the point. The
-            second line stays live text in the serif, because the two-tone
-            split is the provenance grammar the rest of the app reads by and
-            flattening it into one SVG would cost more than the effect. */}
-        {/* Both lines start at the same x. The drawn line used to sit inset
-            from the serif one because the SVG centred its glyphs inside a box
-            that is wider than they are — xMid, plus a left pad scaled off the
-            font size. It left-aligns now, and pads horizontally by the stroke
-            width alone. Sizes are picked so the two lines land within a few
-            percent of each other rather than one towering over the other. */}
         <h1 className="max-w-[820px] leading-[0.86] tracking-[-.02em]">
           <span className="sr-only">Chargebacks, answered with evidence.</span>
           <span aria-hidden className="block w-full">
@@ -101,34 +62,12 @@ export default function Overview({ split }: { split: string }) {
               strokeColor="#0071E3" fillColor="hsl(var(--foreground))"
               minFontSize={44} maxFontSize={130} strokeWidth={0.9} drawDuration={1.3} />
           </span>
-          {/* One line, always, and sized so it ends where the line above it
-              ends. Twenty-three characters against twelve, so at equal size
-              this line would run half again as wide as the container. The
-              string measures 9.387em in Lobster, read off the shipped font
-              file, so container/9.387 is the size that lands both lines in the
-              same place; the calc reproduces that at every viewport instead of
-              guessing at breakpoints.
-
-              No italic and no bold — Lobster ships one 400 cut, and asking a
-              browser to fake either on a script face slants the connecting
-              strokes off their baseline and fills in the loops.
-
-              The negative top margin is not a nudge. Lobster reserves 0.287em
-              of empty ascent above the tallest ink in this string, measured
-              off the font, and line-height 1.15 returns 0.05em of that as
-              negative half-leading — so 0.237em of the gap was nothing but air
-              inside the font's own box. Pulling up 0.14em leaves about a tenth
-              of an em of real optical space. In em, not px, so it stays right
-              across the whole clamp rather than at one viewport width. */}
           <span aria-hidden className="-mt-[.14em] block whitespace-nowrap font-script text-[clamp(20px,calc(10.65vw_-_5.11px),87px)] leading-[1.15] text-cobalt">
             answered with evidence.
           </span>
         </h1>
       </div>
 
-      {/* ── is it accurate ────────────────────────────────────────────────
-          Four numbers, four labels. The explanation of each is a tooltip,
-          which costs the page nothing until someone wants it. */}
       <div className="grid gap-y-12 sm:grid-cols-2 lg:grid-cols-4">
         {(agent ? KPIS : [0, 1, 2, 3]).map((k: any, i) => (
           <div key={i} className="reveal" style={{ "--i": i + 1 } as React.CSSProperties}>
@@ -152,14 +91,9 @@ export default function Overview({ split }: { split: string }) {
         ))}
       </div>
 
-      {/* ── what it is worth ──────────────────────────────────────────── */}
       <section className="reveal" style={{ "--i": 5 } as React.CSSProperties}>
         <div className="mb-12 flex flex-wrap items-end justify-between gap-6 border-t border-border pt-8">
           <h2 className="font-display text-[clamp(30px,4vw,44px)] leading-none">What this is worth</h2>
-          {/* Slider for the shape of the number, box for the exact one. The
-              slider is faster to demo with and the box is the only way to type
-              4,000 without dragging for it, so both drive the same state
-              rather than one replacing the other. */}
           <div className="flex flex-wrap gap-8">
             {([
               { id: "vol", label: "Disputes / month", v: vol, set: setVol, min: 250, max: 20000, step: 250, w: "w-24" },
@@ -176,13 +110,6 @@ export default function Overview({ split }: { split: string }) {
                     min={c.min} max={c.max} step={c.step}
                     onValueChange={([n]) => c.set(n)}
                   />
-                  {/* Clamped to the slider's range, but the two ends clamp at
-                      different moments on purpose. The ceiling applies as you
-                      type, because exceeding it is the case where the thumb
-                      would park at the end reading something the box does not.
-                      The floor waits for blur: min is 250, so clamping it per
-                      keystroke would turn the 4 of 4000 into 250 and make the
-                      value literally untypeable. */}
                   <Input
                     id={`proj-${c.id}`} type="number" value={c.v}
                     min={c.min} max={c.max} step={c.step}
@@ -231,8 +158,6 @@ export default function Overview({ split }: { split: string }) {
                     <Ticker value={x.v} format={x.f} delay={i * 0.06} />
                   </div>
                   <div className="dateline mt-3 text-muted-foreground/60">{x.l}</div>
-                  {/* The multiplication, stated. Without it a six-figure total
-                      invites the reader to assume the input was rupees. */}
                   <div className="mt-1.5 font-mono text-[10.5px] tabular-nums text-muted-foreground/45">{x.m}</div>
                 </div>
               ))}
@@ -243,11 +168,6 @@ export default function Overview({ split }: { split: string }) {
               {inr(perCaseAgent)}.
             </p>
 
-            {/* Subordinate on purpose. Level with the four figures above it, a
-                reader subtracts one from the other and walks away - but the
-                subtraction is wrong, because the exposure is a modelled risk you
-                can buy out, not a bill that has arrived. So: quieter type, and
-                the price of removing it stated in the same breath. */}
             <div className="mt-14 border-t border-signal-warn/25 pt-7">
               <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
                 <span className="dateline text-signal-warn/80">Risk carried, not netted off</span>

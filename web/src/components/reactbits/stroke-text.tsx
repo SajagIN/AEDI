@@ -1,22 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { gsap } from "gsap";
 
-/*  StrokeText — adapted from React Bits
- *
- *  Two changes.
- *
- *  The original takes a fixed `fontSize` and gives its <svg> a fixed pixel
- *  height while letting the width run to 100%. With `meet`, a narrow viewport
- *  scales the glyphs down but the reserved height stays put, so the wordmark
- *  floats in a growing pocket of dead space. Here the type size is derived
- *  from the measured container width, which is what a display line on a
- *  fluid page actually needs.
- *
- *  ScrollTrigger is gone. The one place this is used draws on mount, and
- *  pulling in a second gsap plugin to support a trigger nothing calls is
- *  weight for nothing.
- */
-
 export interface StrokeTextProps {
   text: string;
   strokeColor?: string;
@@ -27,7 +11,6 @@ export interface StrokeTextProps {
   stagger?: number;
   ease?: string;
   fillMode?: "wipe" | "fade" | "none";
-  /** SVG text inherits the page face unless told otherwise. */
   fontFamily?: string;
   minFontSize?: number;
   maxFontSize?: number;
@@ -74,16 +57,6 @@ export default function StrokeText({
     [fontFamily, fontSize, fontWeight, letterSpacing],
   );
 
-  /* Size the type to the box it is in, rather than reserving a fixed height
-     and letting the glyphs rattle around inside it.
-
-     This used to multiply the character count by a hand-tuned em value, which
-     is only right for the one typeface it was eyeballed against — swap the
-     display face and the wordmark overflows or shrinks. getComputedTextLength
-     reports the advance width the browser actually laid out, so the ratio is
-     measured off the rendered glyphs instead of assumed. Width scales linearly
-     with font-size, so a single correction converges, and the 1.5% tolerance
-     stops it hunting between two adjacent integers. */
   useLayoutEffect(() => {
     const root = rootRef.current;
     const node = strokeTextRef.current;
@@ -112,12 +85,6 @@ export default function StrokeText({
       let bbox: DOMRect | undefined;
       try { bbox = strokeTextRef.current.getBBox(); } catch { return; }
       if (!bbox || !bbox.width) return;
-      /* Both pads are the stroke's own overhang and nothing more. The
-         viewBox IS the glyph bbox, so nothing can be clipped except the half
-         of the stroke that sits outside the outline — a tenth of the font
-         size on top of that is dead space, and on the vertical axis it opens
-         a visible trench between this line and whatever is set beneath it.
-         The horizontal axis was fixed earlier; this is the same bug. */
       const padX = strokeWidth;
       const padY = strokeWidth;
       const next = { x: bbox.x - padX, y: bbox.y - padY, width: bbox.width + padX * 2, height: bbox.height + padY * 2 };
@@ -179,11 +146,6 @@ export default function StrokeText({
     >
       <svg
         className="block w-full"
-        /* Once the box is measured the svg takes the artwork's own aspect
-           ratio, so `meet` has nothing left to letterbox and the element
-           reserves exactly the height the glyphs occupy. Before the first
-           measurement there is nothing to derive it from, so it falls back to
-           a reserved height that keeps the page from jumping. */
         style={box
           ? { aspectRatio: `${box.width} / ${box.height}` }
           : { height: `${Math.round(fontSize * 1.22)}px` }}

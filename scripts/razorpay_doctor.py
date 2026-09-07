@@ -80,7 +80,6 @@ def main():
 
     print(f"{BOLD}Razorpay connection check{RESET}")
 
-    # 1 — credentials -------------------------------------------------------
     step(1, "Credentials in .env")
     cfg = rzp.read_config()
     base = args.host or cfg["api_base"]
@@ -124,7 +123,6 @@ def main():
              "separate random string shown once when the key is created.")
         return report()
 
-    # 2 — can we reach the host --------------------------------------------
     step(2, "Network")
     host = base.split("//", 1)[-1].split("/", 1)[0].split(":")[0]
     port = 443 if base.startswith("https") else int(
@@ -148,7 +146,6 @@ def main():
              "you need the proxy, set HTTPS_PROXY in the environment.")
         return report()
 
-    # 3 — authentication ----------------------------------------------------
     step(3, "Authentication")
     try:
         client = rzp.RazorpayClient(os.getenv("RAZORPAY_KEY_ID"), secret, base)
@@ -166,7 +163,6 @@ def main():
             print(f"        {DIM}HTTP {e.status} · {e.code or 'no code'} · {e.message}{RESET}")
         return report()
 
-    # 4 — the endpoints the console uses ------------------------------------
     step(4, "Endpoints the console calls")
 
     checks = [
@@ -184,8 +180,6 @@ def main():
             cause, fix = rzp.diagnose(e)
             (fail if required else warn)(label, cause or e.message, fix or "")
 
-    # Order creation is a write, so it is opt-in noise-wise but worth doing:
-    # it is the single call the demo depends on most.
     try:
         order = client.create_order(100, receipt="aedi_doctor")
         ok("POST /v1/orders", f"created {order['id']} (INR 1.00, harmless)")
@@ -193,7 +187,6 @@ def main():
         cause, fix = rzp.diagnose(e)
         fail("POST /v1/orders", cause or e.message, fix or "")
 
-    # 5 — demo readiness ----------------------------------------------------
     step(5, "Demo readiness")
     if payments:
         ok(f"{len(payments)} payment(s) on the account", "the 'reuse a payment' list will not be empty")

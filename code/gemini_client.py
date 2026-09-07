@@ -1,23 +1,3 @@
-"""A Gemini client wearing the shape the pipeline already speaks.
-
-The agent loop, the response cache, the key pool and the retry ladder were all
-written against OpenAI-style chat completions: a flat list of role/content
-messages, a `tools` array of JSON-schema function declarations, and a
-`tool_choice` that can force one named function. Gemini's SDK models the same
-ideas differently — alternating Content parts, FunctionDeclaration objects, and
-a FunctionCallingConfig mode.
-
-Rewriting the loop to speak Gemini natively would mean re-deriving behaviour
-that is currently pinned by tests: the bounded two-round loop, the forced final
-round, tool results being fed back by id, the cache key. So the translation
-lives here instead, in one file, where it can be read in full and tested
-directly. Everything upstream keeps working unchanged.
-
-What is deliberately NOT emulated: streaming, n>1, logprobs, and the parts of
-the OpenAI schema this pipeline never sends. An adapter that pretends to
-support everything is a liability; this one raises on anything it does not
-genuinely translate.
-"""
 import json
 import uuid
 
@@ -28,11 +8,6 @@ __all__ = ["GeminiClient"]
 
 
 def _to_declarations(tools):
-    """OpenAI tools array -> Gemini FunctionDeclarations.
-
-    parameters_json_schema takes the JSON Schema unchanged, so the pipeline's
-    tool definitions do not have to be maintained in two dialects.
-    """
     decls = []
     for t in tools or []:
         fn = t["function"] if t.get("type") == "function" else t
@@ -45,14 +20,6 @@ def _to_declarations(tools):
 
 
 def _to_contents(messages):
-    """OpenAI messages -> (system_instruction, contents).
-
-    Gemini carries the system prompt out of band rather than as the first turn,
-    and it labels the assistant 'model'. A tool result is a function_response
-    part rather than a role of its own, and it is matched to its call by
-    function NAME, not by the call id — so the id the loop tracks is used to
-    look the name back up.
-    """
     system_bits, contents, call_names = [], [], {}
     for m in messages:
         role = m.get("role")
@@ -87,12 +54,6 @@ def _to_contents(messages):
 
 
 def _tool_config(tool_choice):
-    """OpenAI tool_choice -> FunctionCallingConfig.
-
-    ANY with a single allowed name is Gemini's forced call: the model must emit
-    that function and cannot answer with prose instead. That is exactly what
-    the classification round depends on.
-    """
     if tool_choice in (None, "auto"):
         mode = types.FunctionCallingConfigMode.AUTO
         allowed = None
@@ -110,7 +71,6 @@ def _tool_config(tool_choice):
 
 
 class _Message:
-    """The subset of an OpenAI message the pipeline reads."""
 
     def __init__(self, response):
         self.content = ""
@@ -171,10 +131,6 @@ class _Completions:
         if tools:
             cfg["tools"] = [types.Tool(function_declarations=_to_declarations(tools))]
             cfg["tool_config"] = _tool_config(tool_choice)
-            # The SDK will otherwise run the tool loop itself. This pipeline
-            # executes its own tools against pre-computed context on purpose —
-            # that is what stops a hallucinated identifier reaching another
-            # merchant's record — so the automatic path is switched off.
             cfg["automatic_function_calling"] = types.AutomaticFunctionCallingConfig(disable=True)
 
         thinking = (extra_body or {}).get("thinking_budget")
@@ -193,7 +149,6 @@ class _Chat:
 
 
 class GeminiClient:
-    """Exposes .chat.completions.create(...) over google-genai."""
 
     def __init__(self, api_key: str):
         self._client = genai.Client(api_key=api_key)

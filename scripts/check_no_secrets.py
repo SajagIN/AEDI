@@ -1,29 +1,3 @@
-"""
-Secret scanner — run before every commit (see scripts/pre-commit) to catch
-a credential before it ever reaches git history, not after.
-
-Why this exists as actual code and not just a README promise: the rule
-this project follows — secret keys must never be committed to a repo,
-environment variables only — is the standard every payment-adjacent
-engineering org states. A README saying "we don't commit secrets" is a
-claim; a script that structurally blocks the commit is evidence. It also
-guards against leftover credentials or placeholder names carried in from
-other projects.
-
-Patterns covered:
-- Gemini API keys (this project's actual provider) — AIza...
-- Payment-gateway API keys / key secrets — the rzp_live_/rzp_test_ and
-  key_id/key_secret shapes, even though this project never calls a
-  payment API, in case that changes later
-- AWS access keys, generic private key headers
-- Any *_API_KEY / *_SECRET / *_TOKEN assignment whose value isn't an
-  obvious placeholder (xxx, your_key_here, changeme, <...>, empty)
-
-Usage:
-    python scripts/check_no_secrets.py               # scans staged files
-    python scripts/check_no_secrets.py --all          # scans the whole tree
-    python scripts/check_no_secrets.py file1 file2    # scans specific files
-"""
 
 import re
 import subprocess
@@ -34,9 +8,6 @@ REPO_ROOT = Path(__file__).parent.parent
 
 PATTERNS = [
     ("Gemini API key", re.compile(r"AIza[A-Za-z0-9_\-]{20,}")),
-    # The previous provider's prefix. Kept deliberately: a scanner that detects
-    # more kinds of secret is strictly safer, and an old key can still be
-    # sitting in someone's shell history or a stale .env.
     ("Groq API key (legacy)", re.compile(r"gsk_[A-Za-z0-9]{20,}")),
     ("Payment gateway API key", re.compile(r"rzp_(live|test)_[A-Za-z0-9]{10,}")),
     ("AWS access key ID", re.compile(r"AKIA[0-9A-Z]{16}")),
@@ -49,10 +20,6 @@ PLACEHOLDER_LOOKALIKES = re.compile(
     re.IGNORECASE,
 )
 
-# A credential is never a bare number, a bare identifier being read back out, or
-# a call expression. These forms show up constantly in ordinary code that happens
-# to have TOKEN/SECRET in a variable name (e.g. MAX_OUTPUT_TOKENS = 1000), and
-# flagging them trains people to ignore the scanner — which is the real risk.
 NON_SECRET_SHAPES = re.compile(
     r"""^(
           [-+]?\d[\d_]*(\.\d+)?      # 1000, 1_000, 2.5
@@ -69,19 +36,9 @@ ASSIGNMENT_PATTERN = re.compile(
     r"""(?P<name>[A-Z0-9_]*(?:API_KEY|SECRET|TOKEN|PASSWORD)[A-Z0-9_]*)\s*[:=]\s*["']?(?P<value>[^\s"'#]+)""",
 )
 
-# Files we deliberately allow to contain placeholder-shaped strings.
 ALLOWED_PLACEHOLDER_FILES = {".env.example"}
 
-# Test scaffolding needs credential-*shaped* constants that are not credentials
-# — a fake Razorpay key the mock server accepts, for instance. Two escape
-# hatches, both narrow and both visible in review:
-#
-#   1. The value carries a conventional fake marker (your…, fake…, example…).
-#      A genuine leaked key will not contain those words.
 #   2. The line carries an explicit `pragma: allowlist-fake` comment.
-#
-# Neither is a blanket file exemption, so a real key sitting next to a fake one
-# is still caught.
 FAKE_MARKERS = re.compile(
     r"(your[_-]|fake|example|placeholder|dummy|redacted|changeme|do[_-]?not[_-]?use|_here\b|x{4,})",
     re.IGNORECASE,

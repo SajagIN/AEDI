@@ -1,36 +1,4 @@
 #!/usr/bin/env python3
-"""Finds out why a live run fell back, one probe at a time.
-
-The pipeline degrades to a safe fallback when the model never returns a usable
-answer, and that is deliberate — a chargeback decision should fail toward a
-human. But it means the interesting error is three layers down, and "check the
-server log" is no help when the run happened in a browser.
-
-So this walks the same path the pipeline walks, in order, and stops at the
-first thing that breaks:
-
-  1. is there a key, and does it look like one
-  2. does the endpoint accept it
-  3. does the configured model exist and answer
-  4. does it accept a tools array at all
-  5. does it accept the FORCED function call the pipeline relies on, with
-     thinking switched off the way the pipeline switches it off
-
-Step 5 is the one that usually bites, and it fails two different ways. A model
-without real function-calling support answers a forced call with prose. A
-reasoning model that ignores thinking_budget=0 spends the whole allowance
-deliberating and returns an empty message — same symptom, opposite fix, and the
-doctor tells them apart by looking for reasoning_content.
-
- Plenty of models on the catalogue will
-happily chat, and quite a few will even emit a tool call when they feel like
-it, but the pipeline does not ask nicely — the classification round forces
-tool_choice to a named function, and a model without real function-calling
-support answers that with prose, an empty completion, or a 400.
-
-    python scripts/gemini_doctor.py
-    python scripts/gemini_doctor.py --model gemini-3.8-flash
-"""
 import argparse
 import json
 import os
@@ -75,7 +43,6 @@ def main():
     model = args.model
     print(f"\nGemini doctor — model: {model}\n")
 
-    # ── 1. the key ────────────────────────────────────────────────────────
     keys = {k: v for k, v in os.environ.items()
             if re.fullmatch(r"GEMINI_API_KEY(_\d+)?", k) and v}
     if not keys:
@@ -89,10 +56,6 @@ def main():
             print(f"{WARN} {name} does not start with 'AIza'. Gemini keys do. "
                   f"If this is a key for another provider it will fail at step 2.")
 
-    # Probing through the pipeline's own adapter rather than the raw SDK, so
-    # a pass here means the path the pipeline actually takes works — including
-    # the message and tool translation, which is where an adapter bug would
-    # hide.
     try:
         from gemini_client import GeminiClient
     except ImportError as e:
@@ -102,7 +65,6 @@ def main():
 
     client = GeminiClient(api_key=sorted(keys.items())[0][1])
 
-    # ── 2. auth ───────────────────────────────────────────────────────────
     try:
         names = client.list_models()
         print(f"{OK} endpoint accepted the key — {len(names)} model(s) visible")
@@ -118,7 +80,6 @@ def main():
             print(f"       Closest visible: {', '.join(near)}")
         print(f"       Set AEDI_MODEL to one that is listed, or pass --model.")
 
-    # ── 3. plain completion ───────────────────────────────────────────────
     try:
         r = client.chat.completions.create(
             model=model, max_tokens=16, temperature=0,
@@ -130,7 +91,6 @@ def main():
         print("       account may not have access to this model.")
         return 1
 
-    # ── 4. tools offered ──────────────────────────────────────────────────
     try:
         r = client.chat.completions.create(
             model=model, max_tokens=128, temperature=0, tools=[PROBE_TOOL], tool_choice="auto",
@@ -144,10 +104,6 @@ def main():
         print("       supporting function calling and set AEDI_MODEL to it.")
         return 1
 
-    # ── 5. the forced call the pipeline actually makes ───────────────────
-    # Thinking off, exactly as the pipeline sends it. On a reasoning model the
-    # same allowance pays for deliberation and for the answer, and a forced
-    # single-function call has no essay to write.
     try:
         r = client.chat.completions.create(
             model=model, max_tokens=256, temperature=0, tools=[PROBE_TOOL],

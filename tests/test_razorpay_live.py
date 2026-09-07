@@ -1,18 +1,3 @@
-"""
-Tests for the Razorpay test-mode bridge.
-
-Everything here runs against tests/fake_razorpay.py — a local stand-in that
-mirrors the documented Razorpay REST contract. No network, no credentials,
-no reliance on api.razorpay.com being reachable.
-
-The properties worth pinning are less about happy paths than about the two
-places this integration could embarrass us:
-
-  1. A live key must never be usable. Accepting a dispute is irreversible
-     and moves real money.
-  2. A locally-raised chargeback must never be presentable as a real
-     Razorpay dispute, and must never be actionable against the API.
-"""
 
 import sys
 import importlib.util
@@ -27,7 +12,6 @@ from fake_razorpay import FakeRazorpay, TEST_KEY_ID, TEST_KEY_SECRET  # noqa: E4
 
 
 def _load_module():
-    """`app/razorpay_live.py` by explicit path — `app` is not a package."""
     path = REPO_ROOT / "app" / "razorpay_live.py"
     spec = importlib.util.spec_from_file_location("aedi_razorpay_live", path)
     mod = importlib.util.module_from_spec(spec)
@@ -50,8 +34,6 @@ def client(server):
     return rzp.RazorpayClient(TEST_KEY_ID, TEST_KEY_SECRET, api_base=server.base_url)
 
 
-# ── credential safety ─────────────────────────────────────────────────────
-
 def test_live_key_is_refused_outright():
     with pytest.raises(rzp.LiveKeyRefused) as exc:
         rzp.RazorpayClient("rzp_live_RealKey123456", "some_secret")  # pragma: allowlist-fake
@@ -59,7 +41,6 @@ def test_live_key_is_refused_outright():
 
 
 def test_live_key_refusal_is_a_razorpay_error_subclass():
-    """So a single `except RazorpayError` in the server catches it too."""
     assert issubclass(rzp.LiveKeyRefused, rzp.RazorpayError)
 
 
@@ -101,8 +82,6 @@ def test_read_config_does_not_leak_the_secret():
                            "RAZORPAY_KEY_SECRET": "super_secret_value"})
     assert "super_secret_value" not in repr(cfg)
 
-
-# ── transport ─────────────────────────────────────────────────────────────
 
 def test_ping_succeeds_with_good_credentials(client):
     assert client.ping() is True
@@ -151,14 +130,7 @@ def test_fetch_payments_lists_everything_seeded(client, server):
     assert len(client.fetch_payments()) == 2
 
 
-# ── the dispute-create gap, pinned ────────────────────────────────────────
-
 def test_razorpay_has_no_dispute_create_endpoint(client):
-    """The premise of the whole local-chargeback design.
-
-    If Razorpay ever ships POST /v1/disputes this test starts failing, which
-    is the signal to delete the local stand-in and use the real thing.
-    """
     with pytest.raises(rzp.RazorpayError) as exc:
         client._call("POST", "/disputes", body={"payment_id": "pay_x"})
     assert exc.value.status == 404
@@ -213,8 +185,6 @@ def test_acting_twice_on_a_dispute_is_rejected(client, server):
     assert "not allowed" in str(exc.value)
 
 
-# ── payment → case mapping ────────────────────────────────────────────────
-
 def test_paise_are_converted_to_rupees_as_a_two_decimal_string():
     assert rzp.paise_to_rupees(500000) == "5000.00"
     assert rzp.paise_to_rupees(1) == "0.01"
@@ -222,8 +192,6 @@ def test_paise_are_converted_to_rupees_as_a_two_decimal_string():
 
 
 def test_payment_to_case_matches_the_dataset_row_shape():
-    """A live case must be indistinguishable in shape from a CSV row, so no
-    downstream code needs a special branch for it."""
     import csv
     with open(REPO_ROOT / "dataset" / "dev" / "cases.csv", newline="", encoding="utf-8") as f:
         dataset_columns = set(next(csv.reader(f)))
@@ -246,12 +214,10 @@ def test_payment_to_case_carries_the_real_payment_id_as_the_case_id():
 def test_payment_to_case_derives_the_date_from_the_payment_timestamp():
     payment = {"id": "pay_x", "amount": 100000, "created_at": 1780000000}
     row = rzp.payment_to_case(payment, merchant_id="mch_001", reason_code="13.1")
-    assert row["transaction_date"] == "2026-05-28"  # 1780000000 == 2026-05-28T22:26Z
+    assert row["transaction_date"] == "2026-05-28"
 
 
 def test_evidence_rendering_round_trips_through_the_real_parser():
-    """Whatever we render must be readable by risk_signals.parse_evidence_items,
-    otherwise the deterministic signals silently see zero evidence."""
     sys.path.insert(0, str(REPO_ROOT / "code"))
     import risk_signals
 
@@ -267,8 +233,6 @@ def test_evidence_rendering_drops_unknown_types_rather_than_inventing_them():
 
 
 def test_a_live_case_produces_the_expected_deterministic_signals():
-    """End to end on the deterministic half: a real payment plus complete
-    evidence for 13.1 must come out `sufficient`."""
     sys.path.insert(0, str(REPO_ROOT / "code"))
     import risk_signals
 
@@ -298,8 +262,6 @@ def test_missing_evidence_is_detected_on_a_live_case():
 
 
 def test_every_catalog_evidence_type_is_one_the_dataset_actually_uses():
-    """Guards against offering a judge an evidence type the reason-code table
-    has never heard of, which would make sufficiency unsatisfiable."""
     import csv
     used = set()
     with open(REPO_ROOT / "dataset" / "reason_code_requirements.csv",
@@ -316,8 +278,6 @@ def test_every_reason_code_maps_from_some_razorpay_phase():
         known = {r["reason_code"] for r in csv.DictReader(f)}
     assert set(rzp.PHASE_TO_REASON_CODE.values()).issubset(known)
 
-
-# ── contest payload ───────────────────────────────────────────────────────
 
 def test_contest_payload_carries_the_agents_reason_as_the_summary():
     dispute = {"dispute_id": "disp_x", "amount_paise": 500000}
@@ -339,8 +299,6 @@ def test_contest_payload_is_honest_about_document_uploads():
     assert "Documents API" in payload["_aedi_note"]
 
 
-# ── webhooks ──────────────────────────────────────────────────────────────
-
 def test_webhook_signature_verification_accepts_a_correct_signature():
     import hmac, hashlib
     body = b'{"event":"payment.captured"}'
@@ -360,8 +318,6 @@ def test_webhook_signature_verification_fails_closed_without_a_secret():
     assert rzp.verify_webhook_signature(b"{}", "abc", "") is False
     assert rzp.verify_webhook_signature(b"{}", "", "whsec") is False
 
-
-# ── event log ─────────────────────────────────────────────────────────────
 
 def test_event_log_ids_increase_and_since_filters_on_them():
     log = rzp.EventLog()
@@ -406,11 +362,6 @@ def test_payment_id_shape_is_validated():
     assert not rzp.looks_like_payment_id("")
     assert not rzp.looks_like_payment_id(None)
 
-
-# ── failure diagnosis ─────────────────────────────────────────────────────
-#
-# A 502 with no explanation is what made a real connection failure
-# undiagnosable in the field. Each shape below must name its own cause.
 
 def _err(message, status=None, code=None):
     return rzp.RazorpayError(message, status=status, code=code)
@@ -459,7 +410,6 @@ def test_razorpay_side_outage_is_not_blamed_on_the_user():
 
 
 def test_unknown_failures_return_empty_rather_than_guessing():
-    """Better to show Razorpay's own words than invent a wrong diagnosis."""
     cause, fix = rzp.diagnose(_err("something nobody predicted", status=418))
     assert cause == "" and fix == ""
 
@@ -478,8 +428,6 @@ def test_error_payload_never_omits_the_original_message():
 
 
 def test_a_cut_tls_connection_is_distinguished_from_a_certificate_problem():
-    """Observed in the wild: 'TLS/SSL connection has been closed (EOF)'.
-    That is interception, not a missing CA bundle — different fix entirely."""
     cut_cause, cut_fix = rzp.diagnose(_err(
         "could not reach Razorpay at https://api.razorpay.com/v1: "
         "TLS/SSL connection has been closed (EOF) (_ssl.c:992)"))
@@ -498,7 +446,6 @@ def test_tls_handshake_variants_are_all_recognised():
 
 
 def test_certificate_diagnosis_still_wins_over_the_generic_tls_one():
-    """Ordering matters: the cert message also contains 'SSL'."""
     cause, fix = rzp.diagnose(_err("[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed"))
     assert "certificates" in cause.lower()
     assert "Install Certificates" in fix

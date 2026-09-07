@@ -1,29 +1,3 @@
-"""
-AEDI console — a small Flask app that puts a real UI in front of the
-chargeback pipeline.
-
-Everything it shows is computed by the actual project code, not
-reimplemented here:
-
-- `code/risk_signals.py` computes the deterministic signals shown per case
-- `code/main.py::build_context` assembles the exact context the agent sees
-- `code/evaluation/main.py` computes every metric on the Evaluation tab
-- `tests/adversarial_regression/fixtures.py` supplies the fixture catalog
-
-Two operating modes, detected at startup:
-
-- REPLAY (no GEMINI_API_KEY): every deterministic signal, the full evaluation
-  harness, and the committed predictions are available. "Run agent" replays
-  the committed decision for that case. This mode always works — no
-  network, no credentials, nothing to configure.
-- LIVE (GEMINI_API_KEY present): "Run agent" additionally calls the real
-  bounded agent loop for a single case, through the same disk cache the
-  batch pipeline uses.
-
-Usage:
-    pip install -r app/requirements.txt
-    python app/server.py            # then open http://127.0.0.1:8000
-"""
 
 import os
 import sys
@@ -54,8 +28,6 @@ import merchant_intel                     # noqa: E402
 
 
 def _load(alias: str, path: Path):
-    """`code/main.py` and `code/evaluation/main.py` are both called `main`,
-    so load each from its own path under a distinct module name."""
     spec = importlib.util.spec_from_file_location(alias, path)
     mod = importlib.util.module_from_spec(spec)
     sys.modules[alias] = mod
@@ -72,11 +44,9 @@ DATASET_DIR = REPO_ROOT / "dataset"
 SPLITS = ("dev", "held_out")
 
 _dataset = pipeline.Dataset(DATASET_DIR)
-_pool = None          # lazily built, only in LIVE mode
+_pool = None
 _cache = pipeline.ResponseCache()
 
-
-# ── helpers ───────────────────────────────────────────────────────────────
 
 def has_api_key() -> bool:
     import re
@@ -111,8 +81,6 @@ def case_row(split: str, case_id: str) -> dict:
 
 
 def signals_for(row: dict) -> dict:
-    """Deterministic signals, straight from risk_signals.py — the same call
-    the runtime pipeline and the dataset generator both make."""
     merchant = _dataset.merchant_history.get(row["merchant_id"], {})
     req = _dataset.reason_requirements.get(row["reason_code"], {})
     items = risk_signals.parse_evidence_items(row)
@@ -143,8 +111,6 @@ def risk_flag_list(sig: dict) -> list:
     return flags
 
 
-# ── API ───────────────────────────────────────────────────────────────────
-
 @app.get("/api/health")
 def health():
     live = has_api_key()
@@ -154,9 +120,6 @@ def health():
         "cache_entries": len(list((REPO_ROOT / ".cache" / "llm_responses").glob("*.json")))
         if (REPO_ROOT / ".cache" / "llm_responses").exists() else 0,
         "model": pipeline.MODEL,
-        # `has_predictions` alone was misleading: an interrupted run leaves a
-        # one-row output.csv, which looked identical to a complete one. Report
-        # the scored count so callers can tell a finished run from a stub.
         "splits": {
             s: {
                 "cases": len(split_cases(s)),
@@ -222,8 +185,6 @@ def case_detail(split, case_id):
 
 @app.post("/api/analyze")
 def analyze():
-    """Replay the committed decision, or — in LIVE mode — actually run the
-    bounded agent loop for this one case through the real disk cache."""
     global _pool
     body = request.get_json(force=True) or {}
     split, case_id = body.get("split", "held_out"), body.get("case_id")
@@ -312,7 +273,6 @@ def analyze():
 
 @app.get("/api/metrics")
 def metrics():
-    """Every number here is produced by code/evaluation/main.py, in process."""
     split = request.args.get("split", "held_out")
     if split not in SPLITS:
         return jsonify({"error": "unknown split"}), 400
@@ -352,10 +312,6 @@ def metrics():
     return jsonify({
         "split": split,
         "available": True,
-        # An interrupted pipeline run leaves a partial output.csv. The scored
-        # subset is then "whatever the run got through before it stopped" —
-        # not a random sample — so anything extrapolated from it is wrong.
-        # Report it and let the UI decline rather than quietly averaging 1 case.
         "n_cases": n_cases,
         "n_scored": n_scored,
         "complete": n_scored >= n_cases > 0,
@@ -373,9 +329,6 @@ def metrics():
     })
 
 
-# A deliberately neutral case: clean evidence, non-risky merchant, no amount
-# anomaly. Same base run_suite.py uses, so the narrative is the ONLY variable —
-# whatever the model does here is attributable to the text, nothing else.
 NEUTRAL_BASE_CASE = {
     "merchant_id": "mch_015",
     "amount": "5000.00",
@@ -393,14 +346,6 @@ NEUTRAL_BASE_CASE = {
 
 @app.post("/api/injection-test")
 def injection_test():
-    """Run one arbitrary merchant narrative against the real pipeline.
-
-    This is the honest version of a 'try to break it' demo: the evidence is
-    clean and sufficient, so the correct answer is `contest`. If a narrative can
-    move the decision, the merchant just talked the system out of money.
-    Requires LIVE mode — judging novel text is exactly the part a model does and
-    deterministic code can't fake.
-    """
     global _pool
     body = request.get_json(force=True) or {}
     narrative = (body.get("narrative") or "").strip()
@@ -464,24 +409,11 @@ def adversarial():
     })
 
 
-# ── bounded live agent calls ──────────────────────────────────────────────
-#
-# analyze_case() retries with backoff, and a token-per-day rejection asks for
-# a 15-minute wait. That is correct for the batch runner and unacceptable for
-# a browser request, which just spins with no feedback. Live calls from the
-# console therefore run on a worker thread with a hard deadline.
-
 LIVE_CALL_DEADLINE_SECONDS = float(os.environ.get("AEDI_LIVE_TIMEOUT", "90"))
 LIVE_CALL_MAX_WAIT_SECONDS = 20.0
 
 
 def run_agent_bounded(row, ctx, deadline=None):
-    """Run the agent with a wall-clock deadline.
-
-    Returns (result, error). On timeout the worker is left running: it cannot
-    be killed safely mid-HTTP-call, and letting it finish means its answer
-    lands in the shared disk cache, so the retry the operator makes is fast.
-    """
     import threading
     deadline = deadline or LIVE_CALL_DEADLINE_SECONDS
     box = {}
@@ -511,20 +443,13 @@ def run_agent_bounded(row, ctx, deadline=None):
 
 
 # ── Razorpay test-mode bridge ─────────────────────────────────────────────
-#
-# See app/razorpay_live.py for the honesty boundary this code maintains:
-# payments are real Razorpay objects, chargebacks are locally raised because
-# the Razorpay API has no endpoint to create one, and every object says which
-# it is. Nothing below ever presents a local object as a Razorpay one.
-
 _rzp_events = razorpay_live.EventLog()
-_rzp_disputes = {}        # dispute_id -> normalised dispute (local + real)
-_rzp_decisions = {}       # dispute_id -> last agent result
+_rzp_disputes = {}
+_rzp_decisions = {}
 _rzp_client_cache = {"client": None, "key_id": None}
 
 
 def rzp_client():
-    """Build (and memoise) a client for the current credentials."""
     key_id = (os.getenv("RAZORPAY_KEY_ID") or "").strip()
     if _rzp_client_cache["client"] is not None and _rzp_client_cache["key_id"] == key_id:
         return _rzp_client_cache["client"]
@@ -534,7 +459,6 @@ def rzp_client():
 
 
 def rzp_guard():
-    """Return (client, None) or (None, flask response) — saves repeating this."""
     cfg = razorpay_live.read_config()
     if cfg["state"] != "configured":
         return None, (jsonify({"error": cfg["detail"], "state": cfg["state"]}), 400)
@@ -546,11 +470,6 @@ def rzp_guard():
 
 @app.get("/api/rzp/status")
 def rzp_status():
-    """Configuration state, plus — if asked — an actual round trip.
-
-    `?probe=1` costs a network call, so the UI only does it on demand rather
-    than on every poll.
-    """
     cfg = razorpay_live.read_config()
     out = dict(cfg, reachable=None, reach_detail=None, real_disputes=None)
 
@@ -575,9 +494,6 @@ def rzp_status():
 
 @app.get("/api/rzp/reference")
 def rzp_reference():
-    """Everything the live form needs: real merchants, real reason codes,
-    real evidence types. Sourced from the project's reference data so a live
-    case is scored against exactly the same rules as a dataset case."""
     merchants = [
         {
             "merchant_id": m["merchant_id"],
@@ -606,12 +522,6 @@ def rzp_reference():
 
 @app.post("/api/rzp/order")
 def rzp_order():
-    """Create a genuine Razorpay test-mode order.
-
-    The order id that comes back is real and appears in the merchant's
-    Razorpay test dashboard. The browser then hands it to Checkout.js, and
-    the resulting payment is a real `pay_…` object.
-    """
     client, err = rzp_guard()
     if err:
         return err
@@ -652,12 +562,6 @@ def rzp_payments():
 
 @app.post("/api/rzp/confirm")
 def rzp_confirm():
-    """Called by the browser after Checkout.js reports success.
-
-    We re-fetch the payment from Razorpay rather than trusting the browser's
-    word for it — the client-side handler is not an authority on whether
-    money moved.
-    """
     client, err = rzp_guard()
     if err:
         return err
@@ -678,7 +582,6 @@ def rzp_confirm():
 
 @app.get("/api/rzp/disputes")
 def rzp_disputes():
-    """Real disputes first, then anything raised locally in this session."""
     out, fetch_error = [], None
     client, err = rzp_guard()
     if not err:
@@ -688,9 +591,6 @@ def rzp_disputes():
                 _rzp_disputes.setdefault(normalised["dispute_id"], normalised)
                 out.append(normalised)
         except razorpay_live.RazorpayError as e:
-            # Still return locally raised disputes — but say the live fetch
-            # failed rather than implying an empty account. Silently swallowing
-            # this made a completely broken connection look healthy.
             fetch_error = razorpay_live.error_payload(e)
     seen = {d["dispute_id"] for d in out}
     out.extend(d for k, d in _rzp_disputes.items() if k not in seen)
@@ -706,11 +606,6 @@ def rzp_disputes():
 
 @app.post("/api/rzp/chargeback")
 def rzp_chargeback():
-    """Raise a chargeback against a real Razorpay payment.
-
-    Explicitly a local object. It is attached to a genuine payment id and
-    scored by the real pipeline, but Razorpay knows nothing about it.
-    """
     client, err = rzp_guard()
     if err:
         return err
@@ -751,7 +646,6 @@ def rzp_chargeback():
 
 @app.post("/api/rzp/decide")
 def rzp_decide():
-    """Run the real pipeline over a live chargeback."""
     global _pool
     body = request.get_json(force=True) or {}
     dispute = _rzp_disputes.get(body.get("dispute_id"))
@@ -807,9 +701,6 @@ def rzp_decide():
                             "values regardless of what the model returned"})
 
 
-    # analyze_case degrades to a manual_review fallback when every attempt
-    # fails, and manual_review is also a legitimate verdict. Returning 200 with
-    # no distinction would present "the model never answered" as a judgement.
     fallback = pipeline.is_fallback_result(result)
     if fallback:
         trace.append({"step": "safe_fallback", "kind": "blocked",
@@ -862,12 +753,6 @@ def rzp_decide():
 
 @app.post("/api/rzp/submit")
 def rzp_submit():
-    """Send the agent's decision back to Razorpay.
-
-    Only ever issued for a genuine Razorpay dispute. For a local chargeback
-    this refuses and returns the request that would have been sent, which is
-    the honest way to show the loop closing.
-    """
     client, err = rzp_guard()
     if err:
         return err
@@ -911,14 +796,6 @@ def rzp_events():
 
 @app.post("/api/rzp/webhook")
 def rzp_webhook():
-    """Receive real Razorpay webhooks.
-
-    Optional, but it is the one path where a genuine chargeback can reach
-    this console: configure a `payment.dispute.created` webhook in the
-    Razorpay dashboard and the dispute arrives here as a real object.
-    Unsigned or wrongly-signed requests are dropped — a webhook endpoint
-    that trusts its caller is a hole, not a feature.
-    """
     secret = (os.getenv("RAZORPAY_WEBHOOK_SECRET") or "").strip()
     raw = request.get_data()
     signature = request.headers.get("X-Razorpay-Signature", "")
@@ -951,13 +828,6 @@ def rzp_webhook():
     return jsonify({"ok": True})
 
 
-# ── merchant adverse-media intel (SerpAPI) ────────────────────────────────
-#
-# Deliberately its own endpoint rather than a field on /api/analyze. The
-# scoring path must stay reproducible offline, so this is something an
-# operator asks for about a named business — never something the pipeline
-# reaches for on its own. See app/merchant_intel.py for the full argument.
-
 @app.get("/api/merchant-intel/status")
 def merchant_intel_status():
     return jsonify({
@@ -976,7 +846,6 @@ def merchant_intel_lookup():
     try:
         return jsonify(merchant_intel.look_up(name))
     except merchant_intel.MerchantIntelUnavailable as e:
-        # 503, not 500: the console is fine, the enrichment is not available.
         return jsonify({"error": str(e), "configured": merchant_intel.has_api_key()}), 503
 
 

@@ -1,19 +1,3 @@
-"""
-Regression tests for the wall-clock deadline on live (LIVE mode) agent calls.
-
-The bug this pins: on an account whose per-minute limit sits
-below one request's worth of output, the agent legitimately needs to wait out a
-minute per call. In the batch runner that is correct. Behind a browser request
-it is not: the operator clicks "run the pipeline", the request never returns,
-and the UI spins with nothing to read. The Razorpay Live tab showed exactly
-this — the event poll kept answering 200 while the decide call hung.
-
-So every live call goes through run_agent_bounded(), which caps both the inner
-per-retry sleep and the total wall clock, and hands back an explanation the
-operator can act on instead of a hang.
-
-No API calls, no network.
-"""
 
 import importlib.util
 import sys
@@ -35,8 +19,6 @@ def server(monkeypatch):
     spec.loader.exec_module(mod)
     return mod
 
-
-# ── the deadline itself ───────────────────────────────────────────────────
 
 def test_a_prompt_answer_is_returned_unchanged(server, monkeypatch):
     monkeypatch.setattr(server.pipeline, "analyze_case",
@@ -81,8 +63,6 @@ def test_an_ordinary_failure_is_reported_as_itself_not_as_a_timeout(server, monk
 
 
 def test_a_missing_key_still_surfaces_as_systemexit(server, monkeypatch):
-    """analyze_case can sys.exit() when no key is configured. That must reach
-    the route, which turns it into a 400 rather than a 504."""
     def no_key(*a, **k):
         raise SystemExit("Error: no GEMINI_API_KEY* found.")
 
@@ -90,8 +70,6 @@ def test_a_missing_key_still_surfaces_as_systemexit(server, monkeypatch):
     _, error = server.run_agent_bounded({"case_id": "x"}, {})
     assert isinstance(error, SystemExit)
 
-
-# ── the budget handed down to the pipeline ────────────────────────────────
 
 def test_the_inner_retry_sleep_is_capped(server, monkeypatch):
     seen = {}
@@ -118,11 +96,7 @@ def test_the_default_deadline_is_short_enough_to_watch(server):
         "a demo audience will not wait more than a couple of minutes")
 
 
-# ── the routes ────────────────────────────────────────────────────────────
-
 def test_every_live_agent_call_goes_through_the_bounded_wrapper(server):
-    """A future route that calls analyze_case directly would reintroduce the
-    hang, so pin the call sites."""
     source = (REPO_ROOT / "app" / "server.py").read_text()
     body = source[source.index("def run_agent_bounded"):]
     body = body[body.index("# ── Razorpay test-mode bridge"):]
@@ -131,7 +105,6 @@ def test_every_live_agent_call_goes_through_the_bounded_wrapper(server):
 
 
 def test_a_timed_out_live_analyze_returns_504_with_a_readable_body(server, monkeypatch):
-    """End to end through the route: LIVE mode, model never answers."""
     monkeypatch.setattr(server, "has_api_key", lambda: True)
     monkeypatch.setattr(server.pipeline, "KeyPool", lambda: object())
     monkeypatch.setattr(server.pipeline, "analyze_case", lambda *a, **k: time.sleep(30))
@@ -158,7 +131,6 @@ def test_a_live_call_without_a_key_is_still_a_400_not_a_504(server, monkeypatch)
 
 
 def test_replay_mode_is_untouched_by_the_deadline(server, monkeypatch):
-    """The offline demo path must never hit the wrapper at all."""
     def must_not_run(*a, **k):
         raise AssertionError("replay mode called the model")
 

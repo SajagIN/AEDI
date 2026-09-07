@@ -1,20 +1,3 @@
-"""
-Tests for the SerpAPI merchant-intel enrichment.
-
-No network. Every SerpAPI call is served by a fake opener, in the same style
-as tests/fake_razorpay.py.
-
-The tests that matter most here are not the parsing ones. They are:
-
-  * test_pipeline_never_imports_merchant_intel — the committed metrics must
-    stay reproducible from the repo alone, which is only true while the
-    scoring path has no search dependency. This asserts that structurally
-    rather than trusting a comment.
-
-  * the escalate_only block — an external, gameable signal is allowed to buy
-    a case human attention and nothing else. Every direction that would let
-    it clear, decide, or improve a case is pinned shut.
-"""
 
 import io
 import json
@@ -30,8 +13,6 @@ sys.path.insert(0, str(REPO_ROOT / "app"))
 import merchant_intel as mi  # noqa: E402
 
 
-# ── fake SerpAPI ──────────────────────────────────────────────────────────
-
 class _Response(io.BytesIO):
     def __enter__(self):
         return self
@@ -42,7 +23,6 @@ class _Response(io.BytesIO):
 
 
 def fake_opener(payload, capture=None):
-    """Returns an opener that answers every call with `payload`."""
     def _open(request, timeout=None):
         if capture is not None:
             capture.append(request.full_url)
@@ -65,11 +45,7 @@ def result(title="t", link="https://example.com/a", snippet=""):
 ENV = {"SERPAPI_KEY": "test_key"}
 
 
-# ── the structural guarantee ──────────────────────────────────────────────
-
 def test_pipeline_never_imports_merchant_intel():
-    """The held-out numbers must be recomputable offline. That is only true
-    while no scoring-path module reaches for the network."""
     for rel in ("code/main.py", "code/risk_signals.py",
                 "code/llm_cache.py", "code/evaluation/main.py"):
         source = (REPO_ROOT / rel).read_text(encoding="utf-8")
@@ -83,8 +59,6 @@ def test_module_lives_outside_the_pipeline_directory():
     assert not (REPO_ROOT / "code" / "merchant_intel.py").exists()
 
 
-# ── the one-directional contract ──────────────────────────────────────────
-
 @pytest.mark.parametrize("decision", ["contest", "accept_liability"])
 def test_elevated_signal_escalates_an_automated_decision(decision):
     assert mi.escalate_only(decision, "elevated") == ("manual_review", True)
@@ -92,8 +66,6 @@ def test_elevated_signal_escalates_an_automated_decision(decision):
 
 @pytest.mark.parametrize("signal", ["clear", "some", "elevated"])
 def test_manual_review_is_never_downgraded(signal):
-    """The whole point: a clean search can never buy a case its way out of
-    human review."""
     assert mi.escalate_only("manual_review", signal) == ("manual_review", False)
 
 
@@ -114,10 +86,7 @@ def test_payload_advertises_the_constraint():
     assert "never" in payload["advisory"].lower()
 
 
-# ── query construction ────────────────────────────────────────────────────
-
 def test_query_quotes_the_merchant_name():
-    """Unquoted, a two-word brand matches every page containing either word."""
     assert mi.build_query("Blue Cart").startswith('"Blue Cart"')
 
 
@@ -146,8 +115,6 @@ def test_api_key_is_sent():
                use_cache=False)
     assert "api_key=test_key" in seen[0]
 
-
-# ── classification ────────────────────────────────────────────────────────
 
 def test_complaint_site_counts_even_without_keywords():
     hits, others = mi.classify_results([
@@ -195,8 +162,6 @@ def test_none_results_is_empty():
     assert mi.classify_results(None) == ([], [])
 
 
-# ── signal banding ────────────────────────────────────────────────────────
-
 @pytest.mark.parametrize("n,expected", [
     (0, "clear"), (1, "some"), (4, "some"), (5, "elevated"), (50, "elevated")])
 def test_signal_bands(n, expected):
@@ -229,8 +194,6 @@ def test_every_returned_result_carries_its_link():
     out = mi.look_up("Acme", env=ENV, opener=fake_opener(payload), use_cache=False)
     assert out["results"][0]["link"].startswith("https://")
 
-
-# ── failure modes ─────────────────────────────────────────────────────────
 
 def test_missing_key_is_a_clear_message_not_a_crash():
     with pytest.raises(mi.MerchantIntelUnavailable) as e:
@@ -274,8 +237,6 @@ def test_unreachable_host_is_named():
         mi.look_up("Acme", env=ENV, opener=_open, use_cache=False)
     assert "could not reach" in str(e.value)
 
-
-# ── caching ───────────────────────────────────────────────────────────────
 
 def test_second_lookup_is_served_from_cache(tmp_path, monkeypatch):
     monkeypatch.setattr(mi, "CACHE_DIR", tmp_path)

@@ -22,8 +22,6 @@ import {
 
 declare global { interface Window { Razorpay?: any } }
 
-/* Checkout.js is loaded on demand — a console running purely in REPLAY mode
-   should not be pulling a third-party script it will never use. */
 function loadCheckout(): Promise<boolean> {
   if (window.Razorpay) return Promise.resolve(true);
   return new Promise((resolve) => {
@@ -67,16 +65,11 @@ export default function Live() {
   const lastEventId = useRef(0);
   const connected = status?.state === "configured";
 
-  /* Probe on mount. Previously the card said "configured" — meaning only that
-     .env had values — while every call was failing, which made a dead
-     connection look healthy until something was clicked. */
   useEffect(() => {
     rzpStatus(true).then(setStatus);
     rzpReference().then(setRef).catch(() => {});
   }, []);
 
-  /* Poll the event feed. Polling rather than SSE on purpose: it survives
-     proxies that buffer streamed responses, which is most of them. */
   useEffect(() => {
     if (!connected) return;
     const tick = async () => {
@@ -86,7 +79,7 @@ export default function Live() {
           lastEventId.current = fresh[fresh.length - 1].id;
           setEvents((prev) => [...prev, ...fresh].slice(-60));
         }
-      } catch { /* the feed is cosmetic; never break the page over it */ }
+      } catch { }
     };
     tick();
     const h = setInterval(tick, 2000);
@@ -119,17 +112,10 @@ export default function Live() {
   const missing = required.filter((t) => !evidence.includes(t));
   const step = decision ? 3 : dispute ? 2 : payment ? 1 : 0;
 
-  /* The stage the reader is looking at, which is normally the stage the
-     workflow is on. Kept separate so a completed stage can be re-opened —
-     the trace is worth going back to once the verdict has landed. */
   const [viewStep, setViewStep] = useState(0);
   const flowRef = useRef<HTMLDivElement>(null);
   const lastAuto = useRef(0);
 
-  /* When Razorpay moves the workflow on, the left column changes under a
-     reader who may be watching the event feed on the right. Follow it. Only
-     on an automatic advance — scrolling someone who just clicked back to
-     re-read stage 2 would be taking the page away from them. */
   useEffect(() => {
     setViewStep(step);
     if (lastAuto.current === step) return;
@@ -137,8 +123,6 @@ export default function Live() {
     const el = flowRef.current;
     if (!el || step === 0) return;
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    /* Offset clears the sticky masthead and its tab row, which scrollIntoView
-       has no way to know about. */
     const y = el.getBoundingClientRect().top + window.scrollY - 128;
     window.scrollTo({ top: Math.max(0, y), behavior: reduced ? "auto" : "smooth" });
   }, [step]);
@@ -200,7 +184,6 @@ export default function Live() {
     setDecision(d); refreshLists();
   });
 
-  /* ── not configured ─────────────────────────────────────────────────── */
   if (status && status.state !== "configured") {
     return (
       <div className="space-y-5">
@@ -241,10 +224,8 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
     );
   }
 
-  /* ── connected ──────────────────────────────────────────────────────── */
   return (
     <div className="space-y-5">
-      {/* connection */}
       <Card>
         <CardContent className="flex flex-wrap items-center gap-x-6 gap-y-3 p-5">
           <div className="flex items-center gap-2">
@@ -267,12 +248,6 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
         </CardContent>
       </Card>
 
-      {/* Said once, here, before anything is clicked.
-          This used to be three separate lines that appeared after the fact —
-          a badge, a paragraph under the request, and a second paragraph under
-          that — all circling the same constraint. Volunteering it up front is
-          also the better demo: the limitation is the API's, and saying so
-          first reads as candour rather than as an excuse afterwards. */}
       <div className="flex gap-3 rounded-lg border border-signal-warn/25 bg-signal-warn/[.05] px-4 py-3">
         <ShieldAlert size={15} className="mt-0.5 shrink-0 text-signal-warn" />
         <p className="text-[12.5px] leading-relaxed text-muted-foreground">
@@ -285,8 +260,6 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
         </p>
       </div>
 
-      {/* A failing connection has to be loud. The keys being present in .env
-          says nothing about whether Razorpay accepts them. */}
       {(conn || status?.reachable === false) && (
         <Card className="animate-reveal border-signal-bad/35 bg-signal-bad/[.05]">
           <CardContent className="p-5">
@@ -323,7 +296,6 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
       <div className="grid gap-5 lg:grid-cols-[1.55fr_1fr]">
         <Stepper ref={flowRef} steps={STEP_LABELS} currentStep={viewStep} reached={step} onStepChange={setViewStep}>
           <Step>
-          {/* 1 — payment */}
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
@@ -400,7 +372,6 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
           </Step>
 
           <Step>
-          {/* 2 — chargeback */}
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
@@ -488,7 +459,6 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
           </Step>
 
           <Step>
-          {/* 3 — decide */}
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
@@ -541,7 +511,6 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
           </Step>
 
           <Step>
-          {/* 4 — the loop closing */}
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
@@ -586,7 +555,6 @@ ${JSON.stringify(decision.razorpay_request.body ?? {}, null, 2)}`}
           </Step>
         </Stepper>
 
-        {/* live feed */}
         <div className="space-y-5">
           <Card className="lg:sticky lg:top-24">
             <CardHeader>
@@ -642,9 +610,6 @@ ${JSON.stringify(decision.razorpay_request.body ?? {}, null, 2)}`}
             </Card>
           )}
 
-          {/* Early warning, alongside the live flow. Deliberately its own
-              panel rather than a field on the decision: this signal informs
-              a person, it does not feed the pipeline. */}
           <MerchantIntelPanel />
         </div>
       </div>

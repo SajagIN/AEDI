@@ -41,9 +41,6 @@ export default function Adversarial({ health }: { health: Health }) {
         </CardHeader>
       </Card>
 
-      {/* The four tiles used to render nothing until the fetch returned, so
-          the page height jumped the moment it did. Same grid, same box sizes,
-          filled with bars until the numbers exist. */}
       {!d && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[0, 1, 2, 3].map((i) => (
@@ -75,7 +72,6 @@ export default function Adversarial({ health }: { health: Health }) {
         </div>
       )}
 
-      {/* playground */}
       <Card className="animate-reveal">
         <CardHeader>
           <CardTitle>Injection playground</CardTitle>
@@ -133,7 +129,6 @@ export default function Adversarial({ health }: { health: Health }) {
         </CardContent>
       </Card>
 
-      {/* fixtures */}
       <div className="grid gap-5 lg:grid-cols-2">
         {[
           { title: "Attack fixtures", sub: "must be flagged", items: d?.attacks ?? [], tone: "bad" as const, Icon: X },

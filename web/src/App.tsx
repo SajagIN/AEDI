@@ -25,10 +25,6 @@ export default function App() {
   useEffect(() => {
     getHealth().then((h) => {
       setHealth(h);
-      /* Pick the split with the most cases actually scored — not merely the
-         first one that has an output.csv. An interrupted run leaves a one-row
-         file on dev, and `dev` sorts first, so the old check silently selected
-         a split with a single scored case and every number read as zero. */
       const best = Object.entries(h.splits)
         .filter(([, v]) => v.scored > 0)
         .sort((a, b) => (b[1].complete ? 1 : 0) - (a[1].complete ? 1 : 0) || b[1].scored - a[1].scored);
@@ -38,44 +34,17 @@ export default function App() {
 
   const live = health?.mode === "live";
 
-  /* The Tabs root has to enclose both the trigger row (which lives in the
-     sticky masthead) and the panels (which scroll), so it wraps the page. */
   return (
     <TooltipProvider delayDuration={150}>
-    {/* Ruled ground. Anchored to the top of the viewport and feathered out
-        downward, so the grid is densest behind the masthead and the hero and
-        has vanished by the time the reader reaches the numbers. */}
     <GridVignetteBackground />
-    {/* The ruled ground above is static and stops below the hero. This layer
-        is the opposite: it draws nothing at all until a pointer moves, then
-        lights the cells it passes and halts its own frame loop the moment the
-        last one has faded. Composited over the static grid it reads as the
-        same lattice waking up under the cursor, and it costs nothing while
-        the reader is still. Pointer-events off, so it never eats a click. */}
     <div className="pointer-events-none fixed inset-0 -z-10" aria-hidden>
       <CursorGrid />
     </div>
     <Tabs defaultValue="overview" className="min-h-screen">
-      {/* ── masthead ──────────────────────────────────────────────────────
-          Set like the head of a printed report: the wordmark in the serif,
-          everything else in small monospace caps, all of it sitting on a
-          hairline rule. */}
       <header className="nm-bar sticky top-0 z-50 rounded-b-[20px]">
         <div className="mx-auto max-w-[1400px] px-6">
           <div className="flex h-[68px] items-center gap-5">
-            {/* The logo is gone: a 32px mark next to a four-letter wordmark was
-                two logos arguing. Bodoni Moda stands in for Bodoni MT
-                Condensed, which is a Monotype commercial licence — the
-                condensed feel comes from tracking, not from scaleX, because
-                squeezing a Didone thickens its hairlines and takes away the
-                only reason to set one. */}
             <div className="flex items-baseline gap-3.5">
-              {/* Bodoni was the wrong call here. A Didone is built for large
-                  display sizes; at 31px in a 56px bar its hairlines thin out and
-                  its tall, small-x-height proportions read spindly rather than
-                  expensive. The wordmark wants to be recognised at a glance from
-                  across a room, which is a job for a geometric sans set heavy and
-                  tight. Bodoni keeps its other job — model-authored prose. */}
               <span className="font-display text-[26px] font-extrabold leading-none tracking-[-.035em]">
                 AEDI
               </span>

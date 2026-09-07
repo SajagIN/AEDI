@@ -3,24 +3,6 @@ import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { motion, useReducedMotion } from "motion/react";
 import { cn } from "@/lib/utils";
 
-/*  A segmented control, not a row of index tabs.
- *
- *  The underline these used to carry was a second, quieter way of saying the
- *  thing the filter group on Case Explorer already said by pressing a pill
- *  into the sheet. One interface, one idiom: the strip is a recess, the
- *  active tab is the one chip raised out of it.
- *
- *  The chip is a single element that moves. Rendering one raised box per tab
- *  and toggling which is visible would cross-fade, and a cross-fade reads as
- *  two chips rather than one travelling — the whole point of the affordance
- *  is that there is exactly one, and it goes where you sent it.
- *
- *  Radix Tabs is uncontrolled by default, so nothing downstream can know
- *  which trigger is active. Rather than push that problem into every caller,
- *  the root mirrors the value internally and publishes it on a context. The
- *  public API is unchanged: pass defaultValue, or pass value and
- *  onValueChange, and both still behave exactly as before.
- */
 const ActiveTab = React.createContext<string | undefined>(undefined);
 
 const Tabs = React.forwardRef<
@@ -76,9 +58,6 @@ const TabsTrigger = React.forwardRef<
           layoutId="tab-chip"
           aria-hidden
           className="nm-raised-sm absolute inset-0 rounded-full"
-          /* Spring rather than a duration so a fast run along the row
-             overtakes itself instead of queueing. Reduced motion gets the
-             same chip in the same place, arriving instantly. */
           transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 420, damping: 38, mass: 0.8 }}
         />
       )}

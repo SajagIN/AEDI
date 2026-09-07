@@ -1,18 +1,3 @@
-"""
-End-to-end tests for the console's /api/rzp/* endpoints.
-
-These drive the Flask app through its test client while `RAZORPAY_API_BASE`
-points at tests/fake_razorpay.py, so the full path is exercised — HTTP in,
-Razorpay call out, pipeline signals, HTTP out — with no network and no
-credentials.
-
-The behaviours pinned here are the ones a demo would expose:
-  * every endpoint degrades to a readable message when unconfigured,
-  * a real payment id is never taken on trust from the browser,
-  * a locally raised chargeback is never submitted to Razorpay,
-  * the deterministic half of the pipeline runs on live data without a
-    GEMINI_API_KEY, and says so rather than inventing a decision.
-"""
 
 import sys
 import json
@@ -45,7 +30,6 @@ def fake():
 
 @pytest.fixture
 def configured(server_module, fake, monkeypatch):
-    """App wired to the mock, with session state reset between tests."""
     monkeypatch.setenv("RAZORPAY_KEY_ID", TEST_KEY_ID)
     monkeypatch.setenv("RAZORPAY_KEY_SECRET", TEST_KEY_SECRET)
     monkeypatch.setenv("RAZORPAY_API_BASE", fake.base_url)
@@ -69,8 +53,6 @@ def unconfigured(server_module, monkeypatch):
 def _json(resp):
     return json.loads(resp.data.decode("utf-8"))
 
-
-# ── status ────────────────────────────────────────────────────────────────
 
 def test_status_reports_unconfigured_without_crashing(unconfigured):
     body = _json(unconfigured.get("/api/rzp/status"))
@@ -117,8 +99,6 @@ def test_a_live_key_is_refused_at_the_endpoint(server_module, monkeypatch):
     assert "test key" in _json(resp)["error"].lower()
 
 
-# ── reference data ────────────────────────────────────────────────────────
-
 def test_reference_exposes_the_projects_real_merchants_and_reason_codes(configured):
     body = _json(configured.get("/api/rzp/reference"))
     assert len(body["merchants"]) == 20
@@ -136,8 +116,6 @@ def test_every_reason_code_lists_the_evidence_it_requires(configured):
     for r in _json(configured.get("/api/rzp/reference"))["reason_codes"]:
         assert r["required_evidence_types"], r["reason_code"]
 
-
-# ── orders and payments ───────────────────────────────────────────────────
 
 def test_creating_an_order_hits_razorpay_and_logs_an_event(configured, fake):
     resp = configured.post("/api/rzp/order", json={"amount_inr": 5000, "merchant_id": "mch_015"})
@@ -183,8 +161,6 @@ def test_confirm_surfaces_an_unknown_payment_as_502_not_500(configured):
     assert resp.status_code == 502
     assert "does not exist" in _json(resp)["error"]
 
-
-# ── raising a chargeback ──────────────────────────────────────────────────
 
 def _raise_chargeback(client, fake, **overrides):
     payment = fake.state.seed_payment(amount=500000)
@@ -253,12 +229,8 @@ def test_disputes_listing_explains_the_missing_create_api(configured):
     assert "no dispute-create API" in _json(configured.get("/api/rzp/disputes"))["note"]
 
 
-# ── deciding ──────────────────────────────────────────────────────────────
-
 def test_deciding_without_a_gemini_key_refuses_but_still_returns_real_signals(
         configured, fake, monkeypatch):
-    """The deterministic half is genuinely computable offline; the model half
-    is not. The endpoint must give the first and decline the second."""
     for key in [k for k in list(__import__("os").environ) if k.startswith("GEMINI_API_KEY")]:
         monkeypatch.delenv(key, raising=False)
 
@@ -278,8 +250,6 @@ def test_deciding_an_unknown_dispute_is_a_404(configured):
     resp = configured.post("/api/rzp/decide", json={"dispute_id": "nope"})
     assert resp.status_code == 404
 
-
-# ── submitting back ───────────────────────────────────────────────────────
 
 def test_submitting_a_local_chargeback_is_refused_with_an_explanation(
         configured, fake, server_module):
@@ -309,7 +279,7 @@ def test_submitting_a_local_chargeback_issues_no_razorpay_call(
 def test_contesting_a_real_dispute_is_actually_submitted(configured, fake, server_module):
     payment = fake.state.seed_payment()
     dispute = fake.state.seed_dispute(payment["id"])
-    configured.get("/api/rzp/disputes")            # pulls it into the session
+    configured.get("/api/rzp/disputes")
     server_module._rzp_decisions[dispute["id"]] = {"decision": "contest"}
 
     resp = configured.post("/api/rzp/submit", json={
@@ -343,8 +313,6 @@ def test_manual_review_has_nothing_to_submit(configured, fake, server_module):
     assert submit.status_code == 400
     assert "manual review" in _json(submit)["error"]
 
-
-# ── webhooks ──────────────────────────────────────────────────────────────
 
 def test_webhook_without_a_signature_is_rejected(configured):
     resp = configured.post("/api/rzp/webhook", json={"event": "payment.captured"})
@@ -389,8 +357,6 @@ def test_a_signed_dispute_webhook_creates_a_real_actionable_dispute(configured, 
     assert arrived[0]["network_reason_code"] == "13.1"
 
 
-# ── event feed ────────────────────────────────────────────────────────────
-
 def test_event_feed_supports_incremental_polling(configured, fake):
     configured.post("/api/rzp/order", json={"amount_inr": 100})
     first = _json(configured.get("/api/rzp/events"))["events"]
@@ -430,15 +396,8 @@ def test_events_record_which_side_each_step_came_from(configured, fake):
     assert events["dispute.raised"] == "local"
 
 
-# ── failures must be visible, not swallowed ───────────────────────────────
-#
-# The bug these pin: /api/rzp/disputes used to catch RazorpayError and return
-# 200 with an empty list, so a completely dead connection rendered as a
-# healthy, empty account.
-
 @pytest.fixture
 def broken(server_module, fake, monkeypatch):
-    """Configured, but pointed at a port with nothing listening."""
     monkeypatch.setenv("RAZORPAY_KEY_ID", TEST_KEY_ID)   # pragma: allowlist-fake
     monkeypatch.setenv("RAZORPAY_KEY_SECRET", TEST_KEY_SECRET)
     monkeypatch.setenv("RAZORPAY_API_BASE", "http://127.0.0.1:1")

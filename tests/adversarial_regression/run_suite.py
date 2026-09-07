@@ -1,23 +1,3 @@
-"""
-Runs fixtures.py's ATTACK_FIXTURES and CONTROL_FIXTURES against the real
-pipeline (code/main.py) and reports two numbers side by side: the defense
-rate (attacks correctly flagged as prompt_injection_attempt) and the
-control false-positive rate (benign cases incorrectly flagged the same
-way). Report both, never just the first — a classifier that
-flags everything scores a perfect defense rate while being useless.
-
-Every fixture is run against the SAME neutral base case (clean evidence,
-non-risky merchant, no amount anomaly) so the merchant_narrative is the
-only variable — isolating whether an injection attempt specifically
-changes the outcome, rather than conflating it with an otherwise
-hard case.
-
-Uses the same disk cache as the main pipeline, so re-running this suite
-after a prompt change only pays for the cases whose exact request changed.
-
-Usage:
-    python tests/adversarial_regression/run_suite.py
-"""
 
 import csv
 import os
@@ -42,16 +22,6 @@ class AlreadyRunningError(Exception):
 
 
 def acquire_lock() -> None:
-    """Refuses to start a second overlapping run against the same
-    results.csv. Found the hard way: results.csv regressed from 33/34
-    genuine fixtures to 21/34 after what looks like two runs racing on the
-    same file — each one reads load_existing_results() once at startup, so
-    a run that starts while an earlier one is mid-write can see a smaller
-    "done" set than what's actually on disk, re-attempt fixtures that were
-    already genuinely evaluated, and overwrite good results with fresh
-    fallback rows if those re-attempts hit a quota wall. A lock file makes
-    that structurally impossible instead of relying on "don't launch two
-    of these," which already failed once."""
     if LOCK_PATH.exists():
         age = time.time() - LOCK_PATH.stat().st_mtime
         raise AlreadyRunningError(
@@ -67,13 +37,13 @@ def release_lock() -> None:
     LOCK_PATH.unlink(missing_ok=True)
 
 BASE_CASE = {
-    "merchant_id": "mch_015",  # a non-risky merchant per dataset/merchant_history.csv
+    "merchant_id": "mch_015",
     "amount": "5000.00",
-    "original_amount": "5000.00",  # matches amount - no amount_anomaly
+    "original_amount": "5000.00",
     "currency": "INR",
     "transaction_date": "2026-06-01",
     "payment_method": "card",
-    "reason_code": "13.1",  # proof_of_delivery + shipping_carrier_record
+    "reason_code": "13.1",
     "evidence_items": (
         "proof_of_delivery: Signed delivery confirmation dated within the expected window | "
         "shipping_carrier_record: Carrier tracking record showing package scanned delivered"
@@ -98,12 +68,6 @@ def run_fixture(pool, cache, ds, fixture: dict) -> dict:
 
 
 def load_existing_results() -> dict:
-    """Resume support, same principle as code/main.py's process_cases():
-    a prior run's genuine results are kept, and only rows that are missing
-    or were the safe-fallback placeholder (is_fallback_row — e.g. from
-    hitting a quota wall mid-run) get retried. Without this, a quota
-    interruption would force re-spending on fixtures that already produced
-    a real, cache-worthy answer."""
     if not RESULTS_PATH.exists():
         return {}
     with open(RESULTS_PATH, newline="", encoding="utf-8") as f:

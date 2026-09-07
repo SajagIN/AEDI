@@ -2,28 +2,6 @@ import { Children, forwardRef, useCallback, useLayoutEffect, useRef, useState, t
 import { AnimatePresence, motion, type Variants } from "motion/react";
 import { Check } from "lucide-react";
 
-/*  Stepper — adapted from React Bits
- *
- *  The substantive change is that this one is controlled. The original owns
- *  its own `currentStep` and moves it with Back and Continue buttons, which
- *  is right for a signup form and wrong here: you cannot press Continue past
- *  "take a payment" without taking a payment. Razorpay decides when this
- *  advances, not the reader. So the step comes in as a prop, the footer is
- *  gone, and `reached` marks how far the workflow has actually got — you can
- *  click back to re-read a stage you have completed, and you cannot click
- *  forward into one you have not.
- *
- *  Cosmetic changes, all forced: #5227FF on the indicators and bg-green-500
- *  on the button are someone else's brand, `max-w-md` with an
- *  `aspect-[4/3]` wrapper would crush a dispute card into a letterbox, and
- *  `Step` applied px-8 on top of the px-8 the content wrapper already had.
- *
- *  One real bug: `onHeightReady` was an inline arrow in the parent's JSX, so
- *  it was a new function on every render and the layout effect that depends
- *  on it re-ran every render. It settles only because setState bails on an
- *  identical value. It is a useCallback now.
- */
-
 const slide: Variants = {
   enter: (dir: number) => ({ x: dir >= 0 ? "-6%" : "6%", opacity: 0 }),
   center: { x: "0%", opacity: 1 },
@@ -36,9 +14,7 @@ export function Step({ children }: { children: ReactNode }) {
 
 export interface StepperProps {
   children: ReactNode;
-  /** Zero-based, and owned by the caller. */
   currentStep: number;
-  /** Furthest stage the workflow has actually reached. */
   reached: number;
   steps: string[];
   onStepChange?: (step: number) => void;
@@ -63,8 +39,6 @@ const Stepper = forwardRef<HTMLDivElement, StepperProps>(function Stepper({
 
   return (
     <div ref={ref} className={className}>
-      {/* Indicators. Labels sit under the marks rather than beside them —
-          four stage names in a row would not survive a narrow column. */}
       <div className="mb-5 flex items-start">
         {steps.map((label, i) => {
           const done = i < reached;
@@ -130,10 +104,6 @@ function Pane({
 }: { children: ReactNode; direction: number; onHeightReady: (h: number) => void }) {
   const ref = useRef<HTMLDivElement | null>(null);
 
-  /* The pane is absolutely positioned so the outgoing and incoming ones can
-     overlap, which means the wrapper has to be told how tall to become. A
-     ResizeObserver rather than a one-shot read: these panes grow when a trace
-     streams in or a verdict lands. */
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;

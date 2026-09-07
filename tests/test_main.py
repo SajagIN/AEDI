@@ -1,12 +1,3 @@
-"""
-Deterministic-logic tests only — no API calls. Mirrors the August build's
-test_main.py pattern.
-
-Covers the pieces that must never depend on model output being well-formed:
-sanitize()'s fallback-to-safe-default behavior, enumerate_evidence()'s
-deterministic ID assignment, _execute_tool()'s refusal to trust
-model-supplied identifiers, and is_fallback_row()'s resume detection.
-"""
 
 import sys
 from pathlib import Path
@@ -23,7 +14,7 @@ import risk_signals  # noqa: E402
 
 def test_sanitize_rejects_invalid_decision():
     result = sanitize({
-        "decision": "definitely_contest_this",  # not a real enum value
+        "decision": "definitely_contest_this",
         "evidence_sufficiency": "sufficient",
         "risk_flags": ["none"],
         "reason": "test",
@@ -85,7 +76,7 @@ def test_sanitize_manual_review_always_carries_the_flag():
     result = sanitize({
         "decision": "manual_review",
         "evidence_sufficiency": "not_enough_information",
-        "risk_flags": ["none"],  # model forgot to add the flag itself
+        "risk_flags": ["none"],
         "reason": "ambiguous",
         "confidence": 0.4,
         "cited_evidence_ids": "none",
@@ -119,8 +110,6 @@ def test_execute_tool_ignores_model_supplied_args_and_uses_ctx():
         "merchant_history_summary": "chargeback_rate_30d=1.2%",
         "merchant_repeat_pattern_flag": False,
     }
-    # A model could pass a completely different / hallucinated case_id here —
-    # _execute_tool must not care, since it never reads its own arguments.
     result = _execute_tool("lookup_case_evidence", ctx)
     assert result["transaction_summary"] == "amount=500 INR"
     assert result["evidence_candidates"] == ctx["evidence_candidates"]
@@ -144,12 +133,10 @@ def test_execute_tool_adds_inline_reminder_only_when_flag_is_true():
         "missing_evidence_types": [],
         "merchant_history_summary": "chargeback_rate_30d=1.2%",
     }
-    # Flag false - no reminder field at all, not even an empty one.
     no_flag_ctx = {**base_ctx, "amount_anomaly_flag": False, "merchant_repeat_pattern_flag": False}
     assert "amount_anomaly_flag_reminder" not in _execute_tool("lookup_case_evidence", no_flag_ctx)
     assert "merchant_repeat_pattern_flag_reminder" not in _execute_tool("lookup_merchant_history", no_flag_ctx)
 
-    # Flag true - reminder present, and it says the flag is true.
     flagged_ctx = {**base_ctx, "amount_anomaly_flag": True, "merchant_repeat_pattern_flag": True}
     r1 = _execute_tool("lookup_case_evidence", flagged_ctx)
     assert "TRUE" in r1["amount_anomaly_flag_reminder"]
@@ -163,7 +150,6 @@ def test_apply_deterministic_overrides_pins_evidence_sufficiency():
         "amount_anomaly_flag": False,
         "merchant_repeat_pattern_flag": False,
     }
-    # Model guessed wrong (said sufficient) — override must correct it.
     result = {"decision": "contest", "evidence_sufficiency": "sufficient", "risk_flags": ["none"]}
     out = apply_deterministic_overrides(result, ctx)
     assert out["evidence_sufficiency"] == "insufficient"
@@ -189,7 +175,6 @@ def test_apply_deterministic_overrides_removes_incorrectly_claimed_flags():
         "amount_anomaly_flag": False,
         "merchant_repeat_pattern_flag": False,
     }
-    # Model incorrectly claimed amount_anomaly when the computed flag says False.
     result = {"decision": "contest", "evidence_sufficiency": "sufficient", "risk_flags": ["amount_anomaly"]}
     out = apply_deterministic_overrides(result, ctx)
     assert out["risk_flags"] == ["none"]
@@ -208,16 +193,13 @@ def test_risk_signals_evidence_sufficiency_three_states():
 
 def test_risk_signals_amount_anomaly():
     assert risk_signals.is_amount_anomaly({"amount": "500", "original_amount": "500"}) is False
-    assert risk_signals.is_amount_anomaly({"amount": "600", "original_amount": "500"}) is True  # exceeds original
-    assert risk_signals.is_amount_anomaly({"amount": "400", "original_amount": "500"}) is True  # partial mismatch flagged
+    assert risk_signals.is_amount_anomaly({"amount": "600", "original_amount": "500"}) is True
+    assert risk_signals.is_amount_anomaly({"amount": "400", "original_amount": "500"}) is True
 
 
 def test_risk_signals_merchant_repeat_pattern_needs_both_conditions():
-    # High rate but good win record — not a repeat-pattern flag on its own.
     assert risk_signals.is_merchant_repeat_pattern({"chargeback_rate_90d": "2.0", "prior_contest_win_rate": "0.8"}) is False
-    # High rate AND poor win record — flagged.
     assert risk_signals.is_merchant_repeat_pattern({"chargeback_rate_90d": "2.0", "prior_contest_win_rate": "0.1"}) is True
-    # Low rate, poor win record — not flagged, rate alone doesn't trigger it.
     assert risk_signals.is_merchant_repeat_pattern({"chargeback_rate_90d": "0.1", "prior_contest_win_rate": "0.1"}) is False
 
 

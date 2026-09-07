@@ -1,10 +1,6 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-/* A panel is the sheet itself, pushed up. Same colour as the page — the
-   whole point of soft UI is that a card is not a lighter rectangle laid on
-   top, it is the surface deforming. The hairline underneath the shadow is
-   what keeps it a rectangle when shadows are unavailable. */
 const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div ref={ref}
@@ -23,8 +19,6 @@ const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDiv
 );
 CardHeader.displayName = "CardHeader";
 
-/* Section heads are set in the display sans at a size that reads as a heading in a
-   printed report rather than a web card title. */
 const CardTitle = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLHeadingElement>>(
   ({ className, ...props }, ref) => (
     <h3 ref={ref} className={cn("font-display text-[19px] leading-[1.2] text-foreground", className)} {...props} />

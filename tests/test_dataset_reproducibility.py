@@ -1,15 +1,3 @@
-"""
-Guards the "deterministic given SEED — re-running reproduces byte-identical
-output" claim in scripts/generate_dataset.py.
-
-That claim silently stopped being true once: csv.writer defaults to RFC 4180's
-"\r\n" line terminator, while .gitattributes pins the repo to eol=lf, so every
-regenerated file differed byte-for-byte from its committed copy even though the
-data was identical. Nothing caught it, because nothing checked.
-
-These tests regenerate the whole dataset into a temp directory and compare it
-to what's committed, byte for byte. No API calls, no network.
-"""
 
 import hashlib
 import importlib.util
@@ -32,12 +20,6 @@ GENERATED_FILES = [
 
 
 def _load_generator(dataset_dir: Path):
-    """Load scripts/generate_dataset.py fresh, pointed at a temp output dir.
-
-    Loaded fresh each time on purpose: the module seeds `random` at import
-    time, so a re-import is what re-establishes the deterministic starting
-    state.
-    """
     sys.path.insert(0, str(REPO_ROOT / "code"))
     spec = importlib.util.spec_from_file_location(
         "generate_dataset_under_test", REPO_ROOT / "scripts" / "generate_dataset.py")
@@ -78,8 +60,6 @@ def test_generated_files_use_lf_endings(regenerated, rel):
 
 
 def test_generator_is_stable_across_two_runs(tmp_path):
-    """Same seed, two independent runs, same bytes — no hidden dependence on
-    hash randomisation, dict ordering, wall-clock time or filesystem order."""
     a, b = tmp_path / "a", tmp_path / "b"
     _load_generator(a).main()
     _load_generator(b).main()
