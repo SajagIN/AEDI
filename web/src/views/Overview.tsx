@@ -60,15 +60,22 @@ export default function Overview({ split }: { split: string }) {
 
   const int = (n: number) => Math.round(n).toLocaleString("en-IN");
 
+  /* False positives and false negatives used to be two of these four. They are
+     one fact, not two, and on this dataset it is a fact the pipeline can barely
+     get wrong: the ground-truth rule separates contest from accept_liability on
+     evidence sufficiency alone, and the pipeline computes that in code and then
+     writes it over the model's answer. Giving a near-guaranteed zero half the
+     hero was the weakest claim on the page. Merged into one tile, and the slot
+     it freed goes to a number that moves. */
   const KPIS = agent ? [
-    { l: "False positives", v: agent.cost.n_false_positive, f: int, t: "good",
-      why: "Contested a case that should have been accepted." },
-    { l: "False negatives", v: agent.cost.n_false_negative, f: int, t: "good",
-      why: "Accepted a case that was winnable." },
     { l: "Coverage", v: agent.coverage, f: pct, t: "plain",
       why: "Decided automatically instead of routing to a human." },
+    { l: "Wrong answers", v: agent.cost.n_false_positive + agent.cost.n_false_negative, f: int, t: "good",
+      why: "Contested one it owed, or paid one it could have won. Near-impossible to get wrong on this dataset — the rules decide it, not the model." },
     { l: "Bypassed reviews", v: agent.cost.n_bypassed_review, f: int, t: "warn",
       why: "The disclosed gap: risky cases the agent auto-decided anyway." },
+    { l: "Cost per 100", v: agent.cost.cost_per_100_inr, f: inr, t: "plain",
+      why: "Analyst time plus priced mistakes. Excludes the risk carried by the bypassed reviews." },
   ] : [];
 
   return (

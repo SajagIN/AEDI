@@ -41,8 +41,6 @@ import { PipelineRail } from "@/components/pipeline-rail";
 const COLUMNS = [
   { key: "auto", head: "Decided on its own", term: "coverage",
     help: "Closed without a human. Cheap, but only safe on a case that could be closed." },
-  { key: "wrong", head: "Wrong answers", term: "false positive + false negative",
-    help: "Fought one we owed, or paid one we would have won. Every system scores zero here, and that is close to guaranteed by construction: the ground-truth rule picks contest over accept_liability purely on evidence sufficiency, which the pipeline computes in code and then pins onto the model's answer. Getting this pair wrong is nearly impossible, so the column settles nothing." },
   { key: "bypassed", head: "Decided one it should have escalated", term: "bypassed review",
     help: "The correct answer was 'a person should look at this' and the system answered anyway. It is not scored as an error, so it is priced separately — and it is the only column that tells these three apart." },
   { key: "priced", head: "Cost per 100", term: "cost_per_100_inr",
@@ -103,7 +101,6 @@ export default function Evaluation({ health, split, setSplit }:
   const cell = (r: Row, key: string) => {
     switch (key) {
       case "auto":     return { v: `${r.n - r.manual}`, sub: pct(r.coverage) };
-      case "wrong":    return { v: `${r.wrong}`, sub: r.wrong === 0 ? "none" : "" };
       case "bypassed": return { v: `${r.bypassed}`, sub: needHuman ? `of ${needHuman}` : "" };
       case "priced":   return { v: inr(r.priced), sub: "" };
       case "risk":     return { v: inr(r.risk), sub: r.risk === 0 ? "none" : "" };
@@ -165,18 +162,6 @@ export default function Evaluation({ health, split, setSplit }:
             human and sent <b className="tabular-nums">{agent.cost.n_manual_review}</b> to a person. It got{" "}
             <b className="text-signal-good">none</b> of them wrong.
           </p>
-          {/* Every system scores zero wrong answers, so that sentence on its own
-              flatters all three equally. The sentence that separates them has to
-              come immediately after it or the table below reads backwards. */}
-          <p className="text-muted-foreground">
-            So does every row below — no system here fights a case it owed or pays one it would have
-            won. What separates them is the{" "}
-            <b className="font-medium text-foreground tabular-nums">{needHuman}</b> cases whose correct
-            answer was <i>a person should look at this</i>. Rules-only has no way to say that, so it
-            decides all {needHuman}. AEDI decides{" "}
-            <b className="font-medium text-signal-warn tabular-nums">{agent.cost.n_bypassed_review}</b> of
-            them. That gap is the model&rsquo;s entire job.
-          </p>
         </div>
       )}
 
@@ -227,7 +212,7 @@ export default function Evaluation({ health, split, setSplit }:
                     const { v, sub } = cell(r, c.key);
                     const n = Number(String(v).replace(/[^0-9.]/g, ""));
                     const risky = (c.key === "bypassed" || c.key === "risk") && n > 0;
-                    const clean = (c.key === "bypassed" || c.key === "risk" || c.key === "wrong") && n === 0;
+                    const clean = (c.key === "bypassed" || c.key === "risk") && n === 0;
                     return (
                       <td key={c.key} className={`px-3 py-4 ${c.key === "total" ? "border-l border-border" : ""}`}>
                         <div className={`font-mono tabular-nums ${c.key === "total" ? "text-[18px] font-semibold" : "text-[17px]"} ${

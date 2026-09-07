@@ -59,10 +59,9 @@ const STAGES: Stage[] = [
 ];
 
 export function PipelineRail() {
-  const [pinned, setPinned] = useState("agent");
-  const [hovered, setHovered] = useState<string | null>(null);
+  const [shownId, setShownId] = useState("agent");
   const btns = useRef<(HTMLButtonElement | null)[]>([]);
-  const shown = STAGES.find((s) => s.id === (hovered ?? pinned)) ?? STAGES[0];
+  const shown = STAGES.find((s) => s.id === shownId) ?? STAGES[0];
 
   /* A horizontal rail invites arrow keys, so it answers to them. */
   const onKeyDown = (e: React.KeyboardEvent, i: number) => {
@@ -70,7 +69,7 @@ export function PipelineRail() {
     if (!delta) return;
     e.preventDefault();
     const next = (i + delta + STAGES.length) % STAGES.length;
-    setPinned(STAGES[next].id);
+    setShownId(STAGES[next].id);
     btns.current[next]?.focus();
   };
 
@@ -95,19 +94,14 @@ export function PipelineRail() {
 
           {STAGES.map((s, i) => {
             const isShown = shown.id === s.id;
-            const isPinned = pinned === s.id;
             return (
               <li key={s.id} className="relative flex flex-1 flex-col items-center gap-2.5">
                 <button
                   ref={(el) => { btns.current[i] = el; }}
                   type="button"
-                  onClick={() => setPinned(s.id)}
-                  onMouseEnter={() => setHovered(s.id)}
-                  onMouseLeave={() => setHovered(null)}
-                  onFocus={() => setHovered(s.id)}
-                  onBlur={() => setHovered(null)}
+                  onClick={() => setShownId(s.id)}
                   onKeyDown={(e) => onKeyDown(e, i)}
-                  aria-expanded={isPinned}
+                  aria-expanded={isShown}
                   aria-controls="pipeline-detail"
                   className={`relative flex h-11 w-11 items-center justify-center rounded-full font-mono text-[11px] transition-[box-shadow,color,transform] duration-200
                     ${isShown
