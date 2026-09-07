@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Ticker } from "@/components/figures";
+import StrokeText from "@/components/reactbits/stroke-text";
 import { getMetrics, inr, pct, type Metrics } from "@/lib/api";
 import { TriangleAlert } from "lucide-react";
 
@@ -73,9 +74,21 @@ export default function Overview({ split }: { split: string }) {
     <div className="space-y-24 pb-16">
       {/* ── the claim ─────────────────────────────────────────────────── */}
       <div className="reveal pt-16 sm:pt-24" style={{ "--i": 0 } as React.CSSProperties}>
-        <h1 className="max-w-[14ch] font-display text-[clamp(52px,9vw,120px)] leading-[0.86] tracking-[-.02em]">
-          Chargebacks,{" "}
-          <span className="font-quote italic text-cobalt">answered with evidence.</span>
+        {/* The first word is drawn rather than set: the outline writes itself
+            on in cobalt and the fill floods after it, which is the one place
+            on this console where an animation is allowed to be the point. The
+            second line stays live text in the serif, because the two-tone
+            split is the provenance grammar the rest of the app reads by and
+            flattening it into one SVG would cost more than the effect. */}
+        <h1 className="max-w-[14ch] leading-[0.86] tracking-[-.02em]">
+          <span className="sr-only">Chargebacks, answered with evidence.</span>
+          <span aria-hidden className="block max-w-[11ch]">
+            <StrokeText text="Chargebacks," strokeColor="#0071E3" fillColor="hsl(var(--foreground))"
+              maxFontSize={120} minFontSize={46} strokeWidth={0.9} drawDuration={1.3} />
+          </span>
+          <span aria-hidden className="mt-1 block font-quote text-[clamp(46px,8vw,104px)] italic leading-[0.9] text-cobalt">
+            answered with evidence.
+          </span>
         </h1>
         {m?.available && (
           <div className="dateline mt-10 text-muted-foreground/50">

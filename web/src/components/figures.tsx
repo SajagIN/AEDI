@@ -1,59 +1,77 @@
-import { useEffect, useRef, useState } from "react";
-import { animate, useInView, useReducedMotion } from "motion/react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useInView, useReducedMotion } from "motion/react";
+import Counter, { displayValue, placesFromFormatted } from "@/components/reactbits/counter";
 import { cn } from "@/lib/utils";
 
 /*  Figures
  *
  *  The money numbers are the argument this whole console is making, so they
- *  get the one piece of real choreography on the page: they count up once,
- *  when they scroll into view, with a single pass of lamplight across the
- *  glyphs as they settle.
+ *  get the one piece of real choreography on the page: each digit rolls into
+ *  place on an odometer, once, when the figure scrolls into view.
  *
- *  Counting is not decoration here. A figure that lands on ₹4,56,000 after
+ *  Counting is not decoration here. A figure that lands on Rs 4,56,000 after
  *  visibly travelling there reads as computed; the same figure painted
  *  instantly reads as typed into a slide.
+ *
+ *  What replaced what: this used to interpolate a single number and reformat
+ *  it every frame, which meant the whole string reflowed on every tick and the
+ *  separators jittered. React Bits' Counter rolls each digit independently, so
+ *  the commas hold still. The lamplight sweep that used to cross the glyphs
+ *  after they settled is gone with it — an odometer and a light sweep are two
+ *  animations doing one job, and the roll is the better of the two.
  */
 
 type TickerProps = {
   value: number;
-  /** Renders the animated number — pass inr(), pct(), toLocaleString, etc. */
+  /** Renders the number — pass inr(), pct(), toLocaleString(), anything. */
   format: (n: number) => string;
   className?: string;
-  /** Seconds. Longer figures deserve a slightly longer travel. */
-  duration?: number;
+  /** Seconds before the roll starts. */
   delay?: number;
 };
 
-export function Ticker({ value, format, className, duration = 1.1, delay = 0 }: TickerProps) {
+export function Ticker({ value, format, className, delay = 0 }: TickerProps) {
   const ref = useRef<HTMLSpanElement>(null);
   const inView = useInView(ref, { once: true, margin: "-40px" });
   const reduced = useReducedMotion();
-  const [shown, setShown] = useState(0);
-  const [settled, setSettled] = useState(false);
+  const [fontPx, setFontPx] = useState(0);
+  const [rolled, setRolled] = useState(false);
+
+  const text = format(value);
+  const places = useMemo(() => placesFromFormatted(text), [text]);
+  const target = useMemo(() => displayValue(text), [text]);
+
+  /* The roll is absolutely positioned, so it needs a pixel height, and every
+     figure on this page is sized with a clamp() on an ancestor. Read what the
+     browser actually resolved, before paint, and again on resize. */
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const read = () => setFontPx(Number.parseFloat(getComputedStyle(el).fontSize) || 0);
+    read();
+    const ro = new ResizeObserver(read);
+    ro.observe(document.documentElement);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
-    if (!inView) return;
-    if (reduced) { setShown(value); setSettled(true); return; }
+    if (!inView || reduced) return;
+    const t = setTimeout(() => setRolled(true), delay * 1000);
+    return () => clearTimeout(t);
+  }, [inView, reduced, delay]);
 
-    setSettled(false);
-    const controls = animate(0, value, {
-      duration,
-      delay,
-      ease: [0.16, 1, 0.3, 1],          // the same easing every reveal uses
-      onUpdate: (v) => setShown(v),
-      onComplete: () => setSettled(true),
-    });
-    return () => controls.stop();
-  }, [inView, value, duration, delay, reduced]);
+  /* Reduced motion gets the answer, not the journey. */
+  if (reduced) {
+    return <span ref={ref} className={cn("tnum inline-block", className)}>{text}</span>;
+  }
 
   return (
-    <span
-      ref={ref}
-      /* The sweep clips a moving highlight to the glyphs themselves, so the
-         light appears to travel through the number rather than over it. */
-      className={cn("tnum inline-block", settled && !reduced && "sweep animate-sweep", className)}
-    >
-      {format(shown)}
+    <span ref={ref} className={cn("tnum inline-block", className)}>
+      {fontPx > 0
+        ? <Counter value={rolled ? target : 0} places={places} fontSize={fontPx} />
+        /* Holds the exact width of the final figure for the one frame before
+           the measurement lands, so nothing reflows underneath it. */
+        : <span className="invisible">{text}</span>}
     </span>
   );
 }

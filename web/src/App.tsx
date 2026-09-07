@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { GridVignetteBackground } from "@/components/ui/vignette-grid-background";
+import CursorGrid from "@/components/reactbits/cursor-grid";
 import { getHealth, type Health } from "@/lib/api";
 import Overview from "@/views/Overview";
 import CaseExplorer from "@/views/CaseExplorer";
@@ -45,6 +46,15 @@ export default function App() {
         downward, so the grid is densest behind the masthead and the hero and
         has vanished by the time the reader reaches the numbers. */}
     <GridVignetteBackground />
+    {/* The ruled ground above is static and stops below the hero. This layer
+        is the opposite: it draws nothing at all until a pointer moves, then
+        lights the cells it passes and halts its own frame loop the moment the
+        last one has faded. Composited over the static grid it reads as the
+        same lattice waking up under the cursor, and it costs nothing while
+        the reader is still. Pointer-events off, so it never eats a click. */}
+    <div className="pointer-events-none fixed inset-0 -z-10" aria-hidden>
+      <CursorGrid />
+    </div>
     <Tabs defaultValue="overview" className="min-h-screen">
       {/* ── masthead ──────────────────────────────────────────────────────
           Set like the head of a printed report: the wordmark in the serif,
