@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { toneFor } from "@/lib/decision";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -288,7 +289,7 @@ export default function CaseExplorer({ health, split, setSplit }:
                     <div className="animate-reveal rounded-lg border border-border bg-secondary/30 p-5"
                       style={{ animationDelay: `${run.trace.length * 0.11}s` }}>
                       <div className="mb-3 flex flex-wrap items-center gap-2.5">
-                        <span className={`font-mono text-[24px] font-semibold tracking-tight ${run.result.decision === "contest" ? "text-signal-good" : run.result.decision === "accept_liability" ? "text-signal-warn" : "text-signal-info"}`}>
+                        <span className={`font-mono text-[24px] font-semibold tracking-tight ${toneFor(run.result.decision).text}`}>
                           {nice(run.result.decision)}
                         </span>
                         {run.ground_truth && (

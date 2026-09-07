@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import MerchantIntelPanel from "@/components/merchant-intel-panel";
 import Stepper, { Step } from "@/components/reactbits/stepper";
+import { toneFor } from "@/lib/decision";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -122,7 +123,25 @@ export default function Live() {
      workflow is on. Kept separate so a completed stage can be re-opened —
      the trace is worth going back to once the verdict has landed. */
   const [viewStep, setViewStep] = useState(0);
-  useEffect(() => { setViewStep(step); }, [step]);
+  const flowRef = useRef<HTMLDivElement>(null);
+  const lastAuto = useRef(0);
+
+  /* When Razorpay moves the workflow on, the left column changes under a
+     reader who may be watching the event feed on the right. Follow it. Only
+     on an automatic advance — scrolling someone who just clicked back to
+     re-read stage 2 would be taking the page away from them. */
+  useEffect(() => {
+    setViewStep(step);
+    if (lastAuto.current === step) return;
+    lastAuto.current = step;
+    const el = flowRef.current;
+    if (!el || step === 0) return;
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    /* Offset clears the sticky masthead and its tab row, which scrollIntoView
+       has no way to know about. */
+    const y = el.getBoundingClientRect().top + window.scrollY - 128;
+    window.scrollTo({ top: Math.max(0, y), behavior: reduced ? "auto" : "smooth" });
+  }, [step]);
 
   const run = async (name: string, fn: () => Promise<void>) => {
     setBusy(name); setErr(null);
@@ -312,14 +331,14 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
       )}
 
       <div className="grid gap-5 lg:grid-cols-[1.55fr_1fr]">
-        <Stepper steps={STEP_LABELS} currentStep={viewStep} reached={step} onStepChange={setViewStep}>
+        <Stepper ref={flowRef} steps={STEP_LABELS} currentStep={viewStep} reached={step} onStepChange={setViewStep}>
           <Step>
           {/* 1 — payment */}
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
                 <CreditCard size={16} className="text-signal-info" />
-                <CardTitle>1 · Take a real test payment</CardTitle>
+                <CardTitle>Take a real test payment</CardTitle>
               </div>
               <CardDescription>
                 Test card <code className="font-mono text-foreground">4111 1111 1111 1111</code>, any future
@@ -393,11 +412,11 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
 
           <Step>
           {/* 2 — chargeback */}
-          <Card className={payment ? "" : "pointer-events-none opacity-45"}>
+          <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Gavel size={16} className="text-signal-warn" />
-                <CardTitle>2 · The bank raises a chargeback</CardTitle>
+                <CardTitle>The bank raises a chargeback</CardTitle>
                 <Badge variant="warn">stood in for</Badge>
               </div>
               <CardDescription>
@@ -480,11 +499,11 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
 
           <Step>
           {/* 3 — decide */}
-          <Card className={dispute ? "" : "pointer-events-none opacity-45"}>
+          <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Sparkles size={16} className="text-signal-alt" />
-                <CardTitle>3 · AEDI decides</CardTitle>
+                <CardTitle>AEDI decides</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
@@ -531,20 +550,17 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
 
           <Step>
           {/* 4 — the loop closing */}
-          <Card className={decision ? "" : "pointer-events-none opacity-45"}>
+          <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Gavel size={16} className="text-signal-good" />
-                <CardTitle>4 · Respond to Razorpay</CardTitle>
+                <CardTitle>Respond to Razorpay</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
               {decision && (
                 <div className="space-y-3">
-                  <div className={`animate-reveal rounded-lg border p-5
-                    ${decision.result.decision === "contest" ? "border-signal-good/30 bg-signal-good/[.05]"
-                      : decision.result.decision === "accept_liability" ? "border-signal-warn/30 bg-signal-warn/[.05]"
-                      : "border-signal-info/30 bg-signal-info/[.05]"}`}>
+                  <div className={`animate-reveal rounded-lg border p-5 ${toneFor(decision.result.decision).panel}`}>
                     <div className="mb-3 flex flex-wrap items-center gap-2">
                       <span className="text-[19px] font-semibold">{nice(decision.result.decision)}</span>
                       {decision.result.confidence != null && (

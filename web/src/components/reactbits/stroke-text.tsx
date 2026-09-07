@@ -27,8 +27,6 @@ export interface StrokeTextProps {
   stagger?: number;
   ease?: string;
   fillMode?: "wipe" | "fade" | "none";
-  /** Type size is width / (characters x this). Lower = larger type. */
-  advance?: number;
   minFontSize?: number;
   maxFontSize?: number;
   fontWeight?: number | string;
@@ -49,7 +47,6 @@ export default function StrokeText({
   stagger = 0.045,
   ease = "power2.out",
   fillMode = "wipe",
-  advance = 0.56,
   minFontSize = 40,
   maxFontSize = 132,
   fontWeight = 600,
@@ -75,21 +72,35 @@ export default function StrokeText({
   );
 
   /* Size the type to the box it is in, rather than reserving a fixed height
-     and letting the glyphs rattle around inside it. */
+     and letting the glyphs rattle around inside it.
+
+     This used to multiply the character count by a hand-tuned em value, which
+     is only right for the one typeface it was eyeballed against — swap the
+     display face and the wordmark overflows or shrinks. getComputedTextLength
+     reports the advance width the browser actually laid out, so the ratio is
+     measured off the rendered glyphs instead of assumed. Width scales linearly
+     with font-size, so a single correction converges, and the 1.5% tolerance
+     stops it hunting between two adjacent integers. */
   useLayoutEffect(() => {
     const root = rootRef.current;
-    if (!root) return;
+    const node = strokeTextRef.current;
+    if (!root || !node) return;
     const fit = () => {
-      const w = root.offsetWidth;
-      if (!w) return;
-      const raw = w / Math.max(characters.length * advance, 1);
-      setFontSize(Math.round(Math.min(maxFontSize, Math.max(minFontSize, raw))));
+      const boxWidth = root.offsetWidth;
+      if (!boxWidth) return;
+      let laidOut = 0;
+      try { laidOut = node.getComputedTextLength(); } catch { return; }
+      if (!laidOut) return;
+      const perPixel = laidOut / fontSize;
+      const want = Math.round(Math.min(maxFontSize, Math.max(minFontSize, boxWidth / perPixel)));
+      if (Math.abs(want - fontSize) / Math.max(fontSize, 1) > 0.015) setFontSize(want);
     };
     fit();
+    document.fonts?.ready.then(fit).catch(() => {});
     const ro = new ResizeObserver(fit);
     ro.observe(root);
     return () => ro.disconnect();
-  }, [characters.length, advance, minFontSize, maxFontSize]);
+  }, [characters.length, fontSize, minFontSize, maxFontSize]);
 
   useLayoutEffect(() => {
     let cancelled = false;

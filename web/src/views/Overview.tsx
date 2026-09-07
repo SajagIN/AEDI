@@ -88,7 +88,7 @@ export default function Overview({ split }: { split: string }) {
           <span className="sr-only">Chargebacks, answered with evidence.</span>
           <span aria-hidden className="block w-full max-w-[min(100%,860px)]">
             <StrokeText text="Chargebacks," strokeColor="#0071E3" fillColor="hsl(var(--foreground))"
-              advance={0.52} minFontSize={52} maxFontSize={168} strokeWidth={0.9} drawDuration={1.3} />
+              minFontSize={52} maxFontSize={168} strokeWidth={0.9} drawDuration={1.3} />
           </span>
           <span aria-hidden className="mt-1 block max-w-[13ch] font-quote text-[clamp(48px,8.4vw,112px)] italic leading-[0.92] text-cobalt">
             answered with evidence.

@@ -1,4 +1,4 @@
-import { Children, useCallback, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Children, forwardRef, useCallback, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion, type Variants } from "motion/react";
 import { Check } from "lucide-react";
 
@@ -45,14 +45,14 @@ export interface StepperProps {
   className?: string;
 }
 
-export default function Stepper({
+const Stepper = forwardRef<HTMLDivElement, StepperProps>(function Stepper({
   children,
   currentStep,
   reached,
   steps,
   onStepChange,
   className = "",
-}: StepperProps) {
+}, ref) {
   const panes = Children.toArray(children);
   const prev = useRef(currentStep);
   const direction = currentStep >= prev.current ? 1 : -1;
@@ -62,7 +62,7 @@ export default function Stepper({
   const onHeightReady = useCallback((h: number) => setHeight(h), []);
 
   return (
-    <div className={className}>
+    <div ref={ref} className={className}>
       {/* Indicators. Labels sit under the marks rather than beside them —
           four stage names in a row would not survive a narrow column. */}
       <div className="mb-5 flex items-start">
@@ -88,7 +88,7 @@ export default function Stepper({
                 >
                   {done ? <Check size={13} strokeWidth={2.5} /> : i + 1}
                 </button>
-                <span className={`text-center font-mono text-[9.5px] uppercase leading-tight tracking-[.1em]
+                <span className={`text-center font-mono text-[10.5px] uppercase leading-tight tracking-[.1em]
                   ${active ? "text-cobalt" : done ? "text-signal-good" : "text-muted-foreground/55"}`}>
                   {label}
                 </span>
@@ -121,7 +121,9 @@ export default function Stepper({
       </motion.div>
     </div>
   );
-}
+});
+
+export default Stepper;
 
 function Pane({
   children, direction, onHeightReady,

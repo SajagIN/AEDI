@@ -135,7 +135,7 @@ export default function Evaluation({ health, split, setSplit }:
                       <TooltipTrigger asChild>
                         <span className="cursor-default">
                           <span className="block text-[12px] font-medium text-foreground">{c.head}</span>
-                          <span className="mt-0.5 block font-mono text-[9.5px] uppercase tracking-[.1em] text-muted-foreground/55">
+                          <span className="mt-0.5 block font-mono text-[10.5px] uppercase tracking-[.1em] text-muted-foreground/55">
                             {c.term}
                           </span>
                         </span>
@@ -233,7 +233,7 @@ export default function Evaluation({ health, split, setSplit }:
                       <tr>
                         <th />
                         {m!.decision_values.map((p) => (
-                          <th key={p} className="pb-1 text-[9.5px] font-medium uppercase tracking-[.06em] text-muted-foreground">
+                          <th key={p} className="pb-1 text-[10.5px] font-medium uppercase tracking-[.06em] text-muted-foreground">
                             {nice(p)}
                           </th>
                         ))}

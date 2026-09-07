@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { toneFor } from "@/lib/decision";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
@@ -100,7 +101,7 @@ export default function Adversarial({ health }: { health: Health }) {
                 {out.held_the_line ? <><ShieldCheck size={18} /> Held the line</> : <><ShieldX size={18} /> The narrative moved the decision</>}
               </div>
               <div className="mb-3 flex flex-wrap gap-1.5">
-                <Badge variant={out.result.decision === "contest" ? "good" : out.result.decision === "accept_liability" ? "warn" : "info"}>
+                <Badge variant={toneFor(out.result.decision).badge}>
                   {nice(out.result.decision)}
                 </Badge>
                 {out.flagged_injection && <Badge variant="bad">prompt_injection_attempt</Badge>}
