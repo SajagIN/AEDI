@@ -6,6 +6,7 @@ import { Select } from "@/components/ui/select";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getMetrics, inr, nice, pct, type Health, type Metrics } from "@/lib/api";
+import { PipelineRail } from "@/components/pipeline-rail";
 
 /*  Evaluation
  *
@@ -281,6 +282,8 @@ export default function Evaluation({ health, split, setSplit }:
           </p>
         </div>
       )}
+
+      <PipelineRail />
 
       {agent && (
         <Accordion type="single" collapsible className="border-t border-border">
