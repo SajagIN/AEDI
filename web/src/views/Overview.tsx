@@ -37,6 +37,18 @@ export default function Overview({ split }: { split: string }) {
   const saved = (perCaseToday - perCaseAgent) * vol;
   const exposure = agent ? (agent.cost.bypassed_review_exposure_per_100_inr / 100) * vol : 0;
 
+  /* The remedy for the exposure, priced. Escalating the bypassed cases to a
+     human removes the disclosed risk entirely and costs one more review each
+     - so the saving survives, smaller. Stating both halves is the difference
+     between "our net is negative" and "we know where the dial sits". */
+  const bypassed = agent?.cost.n_bypassed_review ?? 0;
+  const reviewRate = m?.available ? m.cost_model.manual_review_inr : 150;
+  const perCaseSafe = agent
+    ? ((agent.cost.n_manual_review + bypassed) * reviewRate) / agent.n : 0;
+  const savedSafe = (perCaseToday - perCaseSafe) * vol;
+  const coverageSafe = agent
+    ? (agent.n - agent.cost.n_manual_review - bypassed) / agent.n : 0;
+
   /* A partial run is not a sample — the scored cases are whichever ones the
      pipeline reached before it stopped. Projecting from them would be a
      confident-looking wrong number. */
@@ -137,7 +149,7 @@ export default function Overview({ split }: { split: string }) {
 
         {agent && projectable && (
           <>
-            <div className="grid gap-x-8 gap-y-12 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="grid gap-x-8 gap-y-12 sm:grid-cols-2 lg:grid-cols-4">
               {[
                 { l: "Auto-decided", v: auto, f: int, t: "plain",
                   m: `${pct(agent.coverage)} of ${int(vol)}` },
@@ -147,8 +159,6 @@ export default function Overview({ split }: { split: string }) {
                   m: `${mins} min × ${int(auto)}` },
                 { l: "Cost avoided", v: saved, f: inr, t: "good",
                   m: `${inr(perCaseToday - perCaseAgent)} × ${int(vol)}` },
-                { l: "Risk carried", v: exposure, f: inr, t: "warn",
-                  m: `${inr(exposure / vol)} × ${int(vol)}` },
               ].map((x, i) => (
                 <div key={x.l}>
                   <div className={`font-display text-[clamp(30px,3.4vw,42px)] leading-[0.9] ${
@@ -163,13 +173,36 @@ export default function Overview({ split }: { split: string }) {
               ))}
             </div>
 
-            {/* The one sentence worth keeping: without it the last number
-                reads like a cost of the agent rather than a risk it takes. */}
             <p className="mt-10 max-w-[62ch] text-[12.5px] leading-relaxed text-muted-foreground">
               Reviewing every dispute by hand costs {inr(perCaseToday)} a case; AEDI averages{" "}
-              {inr(perCaseAgent)}. <span className="text-signal-warn">Risk carried</span> is modelled
-              exposure from risky cases it decided alone — deliberately not netted off the saving.
+              {inr(perCaseAgent)}.
             </p>
+
+            {/* Subordinate on purpose. Level with the four figures above it, a
+                reader subtracts one from the other and walks away - but the
+                subtraction is wrong, because the exposure is a modelled risk you
+                can buy out, not a bill that has arrived. So: quieter type, and
+                the price of removing it stated in the same breath. */}
+            <div className="mt-14 border-t border-signal-warn/25 pt-7">
+              <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                <span className="dateline text-signal-warn/80">Risk carried, not netted off</span>
+                <span className="font-mono text-[19px] tabular-nums text-signal-warn">{inr(exposure)}</span>
+                <span className="font-mono text-[10.5px] tabular-nums text-muted-foreground/45">
+                  {inr(exposure / vol)} &times; {int(vol)}
+                </span>
+              </div>
+              <p className="mt-3 max-w-[68ch] text-[12.5px] leading-relaxed text-muted-foreground">
+                On {bypassed} of {agent.n} held-out cases the right answer was &ldquo;a person should
+                look at this&rdquo; and AEDI decided anyway. It was right each time, and the cost
+                model would score it clean, so we price it separately rather than let luck bank as
+                accuracy.{" "}
+                <b className="font-medium text-foreground">
+                  Route those to a human and the exposure goes to zero: coverage falls to{" "}
+                  {pct(coverageSafe)} and {inr(savedSafe)} a month survives.
+                </b>{" "}
+                That is the dial, and both ends of it are measured.
+              </p>
+            </div>
           </>
         )}
       </section>

@@ -149,7 +149,7 @@ export default function Evaluation({ health, split, setSplit }:
             <tbody>
               {m.blocks.map((b, i) => (
                 <tr key={b.name}
-                  className={`border-b border-border/70 ${i === 0 ? "bg-cobalt/[.035]" : ""}`}>
+                  className={`border-b border-border/70 transition-colors hover:bg-foreground/[.025] ${i === 0 ? "bg-cobalt/[.035]" : ""}`}>
                   <td className="py-4 pr-4">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className={`text-[13.5px] ${i === 0 ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
@@ -185,15 +185,29 @@ export default function Evaluation({ health, split, setSplit }:
         </div>
       )}
 
-      {/* ── the honest caveat, and the rigour, both one click down ──────── */}
+      {/* Tooltips die on touch and vanish in a screenshot of a slide, which is
+          how half of these numbers get read. Same definitions, in the flow,
+          wherever hover cannot be assumed. */}
+      {m?.available && (
+        <dl className="grid gap-x-8 gap-y-2 border-t border-border pt-5 sm:grid-cols-2 lg:hidden">
+          {COLUMNS.map((c) => (
+            <div key={c.key} className="flex items-baseline gap-2">
+              <dt className="shrink-0 text-[12px] font-medium text-foreground">{c.head}</dt>
+              <dd className="text-[11.5px] leading-snug text-muted-foreground">{c.help}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+
+      {/* Promoted out of the disclosure it started in. It is the number that
+          argues against us, and a caveat you have to click for is a caveat you
+          are half-hiding. */}
       {agent && (
-        <Accordion type="single" collapsible className="border-t border-border">
-          <AccordionItem value="bypassed">
-            <AccordionTrigger>
-              The {agent.cost.n_bypassed_review} cases this table doesn&rsquo;t punish
-            </AccordionTrigger>
-            <AccordionContent>
-              <p className="max-w-[68ch] text-[13px] leading-relaxed text-muted-foreground">
+        <div className="border-l-2 border-signal-warn/40 pl-5">
+          <div className="dateline mb-2 text-signal-warn/80">
+            The {agent.cost.n_bypassed_review} cases this table doesn&rsquo;t punish
+          </div>
+          <p className="max-w-[68ch] text-[13px] leading-relaxed text-muted-foreground">
                 On {agent.cost.n_bypassed_review} cases the correct answer was &ldquo;a person should
                 look at this&rdquo; and AEDI decided anyway. That is not a false positive or a false
                 negative — the cost model prices exactly two kinds of mistake and this is a third —
@@ -202,11 +216,13 @@ export default function Evaluation({ health, split, setSplit }:
                 <b className="font-mono text-signal-warn">
                   {inr(agent.cost.bypassed_review_exposure_per_100_inr)}
                 </b>{" "}
-                per 100 cases, never netted off the saving.
-              </p>
-            </AccordionContent>
-          </AccordionItem>
+            per 100 cases, never netted off the saving.
+          </p>
+        </div>
+      )}
 
+      {agent && (
+        <Accordion type="single" collapsible className="border-t border-border">
           <AccordionItem value="matrix">
             <AccordionTrigger>Every case, sorted by what it was and what AEDI said</AccordionTrigger>
             <AccordionContent>
