@@ -1,0 +1,196 @@
+import { useEffect, useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Slider } from "@/components/ui/slider";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Ticker } from "@/components/figures";
+import StrokeText from "@/components/reactbits/stroke-text";
+import { getMetrics, inr, pct, type Metrics } from "@/lib/api";
+import { TriangleAlert } from "lucide-react";
+
+export default function Overview({ split }: { split: string }) {
+  const [m, setM] = useState<Metrics | null>(null);
+  const [vol, setVol] = useState(4000);
+  const [mins, setMins] = useState(12);
+
+  useEffect(() => { getMetrics(split).then(setM); }, [split]);
+
+  const agent = m?.available ? m.blocks[0] : null;
+  const allrev = m?.available ? m.blocks[2] : null;
+
+  const perCaseAgent = agent ? agent.cost.cost_per_100_inr / 100 : 0;
+  const perCaseToday = allrev ? allrev.cost.cost_per_100_inr / 100 : 0;
+  const reviewed = agent ? Math.round(vol * (1 - agent.coverage)) : 0;
+  const auto = vol - reviewed;
+  const hours = Math.round((auto * mins) / 60);
+  const saved = (perCaseToday - perCaseAgent) * vol;
+  const exposure = agent ? (agent.cost.bypassed_review_exposure_per_100_inr / 100) * vol : 0;
+
+  const bypassed = agent?.cost.n_bypassed_review ?? 0;
+  const reviewRate = m?.available ? m.cost_model.manual_review_inr : 150;
+  const perCaseSafe = agent
+    ? ((agent.cost.n_manual_review + bypassed) * reviewRate) / agent.n : 0;
+  const savedSafe = (perCaseToday - perCaseSafe) * vol;
+  const coverageSafe = agent
+    ? (agent.n - agent.cost.n_manual_review - bypassed) / agent.n : 0;
+
+  const total = m?.n_cases ?? 0;
+  const scored = m?.n_scored ?? 0;
+  const projectable = !!agent && scored > 0 && scored >= total;
+
+  const int = (n: number) => Math.round(n).toLocaleString("en-IN");
+
+  const KPIS = agent ? [
+    { l: "Coverage", v: agent.coverage, f: pct, t: "plain",
+      why: "Decided automatically instead of routing to a human." },
+    { l: "Wrong answers", v: agent.cost.n_false_positive + agent.cost.n_false_negative, f: int, t: "good",
+      why: "Contested one it owed, or paid one it could have won. Near-impossible to get wrong on this dataset — the rules decide it, not the model." },
+    { l: "Bypassed reviews", v: agent.cost.n_bypassed_review, f: int, t: "warn",
+      why: "The disclosed gap: risky cases the agent auto-decided anyway." },
+    { l: "Cost per 100", v: agent.cost.cost_per_100_inr, f: inr, t: "plain",
+      why: "Analyst time plus priced mistakes. Excludes the risk carried by the bypassed reviews." },
+  ] : [];
+
+  return (
+    <div className="space-y-24 pb-16">
+      <div className="reveal pt-16 sm:pt-24" style={{ "--i": 0 } as React.CSSProperties}>
+        <h1 className="max-w-[820px] leading-[0.86] tracking-[-.02em]">
+          <span className="sr-only">Chargebacks, answered with evidence.</span>
+          <span aria-hidden className="block w-full">
+            <StrokeText text="Chargebacks," fontFamily="Jakarta, sans-serif" fontWeight={700}
+              strokeColor="#0071E3" fillColor="hsl(var(--foreground))"
+              minFontSize={44} maxFontSize={130} strokeWidth={0.9} drawDuration={1.3} />
+          </span>
+          <span aria-hidden className="-mt-[.14em] block whitespace-nowrap font-script text-[clamp(20px,calc(10.65vw_-_5.11px),87px)] leading-[1.15] text-cobalt">
+            answered with evidence.
+          </span>
+        </h1>
+      </div>
+
+      <div className="grid gap-y-12 sm:grid-cols-2 lg:grid-cols-4">
+        {(agent ? KPIS : [0, 1, 2, 3]).map((k: any, i) => (
+          <div key={i} className="reveal" style={{ "--i": i + 1 } as React.CSSProperties}>
+            {agent ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="cursor-default">
+                    <div className={`font-display text-[clamp(48px,6vw,68px)] leading-[0.85] ${
+                      k.t === "good" ? "text-signal-good" : k.t === "warn" ? "text-signal-warn" : "text-foreground"}`}>
+                      <Ticker value={k.v} format={k.f} delay={0.12 + i * 0.08} />
+                    </div>
+                    <div className="dateline mt-4 text-muted-foreground/60">{k.l}</div>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>{k.why}</TooltipContent>
+              </Tooltip>
+            ) : (
+              <><Skeleton className="h-[52px] w-24" /><Skeleton className="mt-5 h-2.5 w-28" /></>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <section className="reveal" style={{ "--i": 5 } as React.CSSProperties}>
+        <div className="mb-12 flex flex-wrap items-end justify-between gap-6 border-t border-border pt-8">
+          <h2 className="font-display text-[clamp(30px,4vw,44px)] leading-none">What this is worth</h2>
+          <div className="flex flex-wrap gap-8">
+            {([
+              { id: "vol", label: "Disputes / month", v: vol, set: setVol, min: 250, max: 20000, step: 250, w: "w-24" },
+              { id: "mins", label: "Minutes / review", v: mins, set: setMins, min: 1, max: 60, step: 1, w: "w-16" },
+            ] as const).map((c) => (
+              <div key={c.id} className="w-[230px]">
+                <label htmlFor={`proj-${c.id}`} className="dateline mb-2 block text-muted-foreground/50">
+                  {c.label}
+                </label>
+                <div className="flex items-center gap-3">
+                  <Slider
+                    aria-label={c.label}
+                    value={[Math.min(c.max, Math.max(c.min, c.v))]}
+                    min={c.min} max={c.max} step={c.step}
+                    onValueChange={([n]) => c.set(n)}
+                  />
+                  <Input
+                    id={`proj-${c.id}`} type="number" value={c.v}
+                    min={c.min} max={c.max} step={c.step}
+                    className={`h-9 shrink-0 ${c.w} tnum`}
+                    onChange={(e) => c.set(Math.min(c.max, Math.max(0, +e.target.value || 0)))}
+                    onBlur={(e) => c.set(Math.min(c.max, Math.max(c.min, +e.target.value || c.min)))}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {agent && !projectable && (
+          <Card className="border-signal-warn/35 bg-signal-warn/[.06]">
+            <CardContent className="flex gap-3 p-5">
+              <TriangleAlert size={16} className="mt-0.5 shrink-0 text-signal-warn" />
+              <div>
+                <div className="font-display text-[17px] text-signal-warn">
+                  {scored === 0 ? `Nothing scored on ${m?.split}` : `Only ${scored} of ${total} scored`}
+                </div>
+                <p className="mt-1 text-[12.5px] text-muted-foreground">
+                  A run that stopped early isn&rsquo;t a sample. Finish it, or switch splits.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {agent && projectable && (
+          <>
+            <div className="grid gap-x-8 gap-y-12 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                { l: "Auto-decided", v: auto, f: int, t: "plain",
+                  m: `${pct(agent.coverage)} of ${int(vol)}` },
+                { l: "To a human", v: reviewed, f: int, t: "plain",
+                  m: `${pct(1 - agent.coverage)} of ${int(vol)}` },
+                { l: "Hours freed", v: hours, f: int, t: "good",
+                  m: `${mins} min × ${int(auto)}` },
+                { l: "Cost avoided", v: saved, f: inr, t: "good",
+                  m: `${inr(perCaseToday - perCaseAgent)} × ${int(vol)}` },
+              ].map((x, i) => (
+                <div key={x.l}>
+                  <div className={`font-display text-[clamp(30px,3.4vw,42px)] leading-[0.9] ${
+                    x.t === "good" ? "text-signal-good" : x.t === "warn" ? "text-signal-warn" : "text-foreground"}`}>
+                    <Ticker value={x.v} format={x.f} delay={i * 0.06} />
+                  </div>
+                  <div className="dateline mt-3 text-muted-foreground/60">{x.l}</div>
+                  <div className="mt-1.5 font-mono text-[10.5px] tabular-nums text-muted-foreground/45">{x.m}</div>
+                </div>
+              ))}
+            </div>
+
+            <p className="mt-10 max-w-[62ch] text-[12.5px] leading-relaxed text-muted-foreground">
+              Reviewing every dispute by hand costs {inr(perCaseToday)} a case; AEDI averages{" "}
+              {inr(perCaseAgent)}.
+            </p>
+
+            <div className="mt-14 border-t border-signal-warn/25 pt-7">
+              <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                <span className="dateline text-signal-warn/80">Risk carried, not netted off</span>
+                <span className="font-mono text-[19px] tabular-nums text-signal-warn">{inr(exposure)}</span>
+                <span className="font-mono text-[10.5px] tabular-nums text-muted-foreground/45">
+                  {inr(exposure / vol)} &times; {int(vol)}
+                </span>
+              </div>
+              <p className="mt-3 max-w-[68ch] text-[12.5px] leading-relaxed text-muted-foreground">
+                On {bypassed} of {agent.n} held-out cases the right answer was &ldquo;a person should
+                look at this&rdquo; and AEDI decided anyway. It was right each time, and the cost
+                model would score it clean, so we price it separately rather than let luck bank as
+                accuracy.{" "}
+                <b className="font-medium text-foreground">
+                  Route those to a human and the exposure goes to zero: coverage falls to{" "}
+                  {pct(coverageSafe)} and {inr(savedSafe)} a month survives.
+                </b>{" "}
+                That is the dial, and both ends of it are measured.
+              </p>
+            </div>
+          </>
+        )}
+      </section>
+    </div>
+  );
+}

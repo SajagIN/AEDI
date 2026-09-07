@@ -1,12 +1,12 @@
 # Architecture
 
-**Chargeback Evidence Responder — Razorpay AI Buildathon 2026, Track 2 (AI Risk Manager)**
+**AEDI — Chargeback Evidence Responder**
 
-This is the standalone architecture document referenced as a required
-submission. It overlaps with the README by design (the README is what a
-visitor reads first; this is what a reviewer evaluating the architecture
-specifically reads next) — component list, data flow, and design
-rationale live here in one place rather than split across files.
+This is the standalone architecture document. It overlaps with the README
+by design (the README is what a visitor reads first; this is what a
+reader evaluating the architecture specifically reads next) — component
+list, data flow, and design rationale live here in one place rather than
+split across files.
 
 ## 1. What the system does
 
@@ -20,16 +20,17 @@ justification, a confidence score, and the specific evidence IDs cited.
 
 | Component | File | Role |
 |---|---|---|
-| `KeyPool` | `code/main.py` | Round-robins across every `GROQ_API_KEY*` found in the environment; marks a key dead on auth failure or daily-cap exhaustion so later calls skip it. |
+| `KeyPool` | `code/main.py` | Round-robins across every `GEMINI_API_KEY*` found in the environment; marks a key dead on auth failure or daily-cap exhaustion so later calls skip it. |
 | `ResponseCache` | `code/llm_cache.py` | Disk cache keyed by a hash of the exact LLM request. Checked before every call, written after every success. Makes re-running the pipeline over already-seen cases free. |
 | `risk_signals` | `code/risk_signals.py` | Computes evidence sufficiency, amount anomaly, and merchant repeat-pattern — pure functions, no LLM involved. Shared between the runtime pipeline and the dataset generator (see §5 on why that sharing is safe). |
 | `Dataset` / `build_context` | `code/main.py` | Loads reference tables (merchant history, reason-code requirements) and assembles the per-case context handed to the model, including the risk_signals output. |
-| Agent loop | `code/main.py::_run_agent_turn` | Bounded, 2-round tool-calling loop against Groq (`qwen/qwen3.6-27b`). See §3. |
+| Agent loop | `code/main.py::_run_agent_turn` | Bounded, 2-round tool-calling loop against Gemini (`gemini-3.8-flash`). See §3. |
 | `_execute_tool` | `code/main.py` | Executes an info-gathering tool call. Ignores every model-supplied argument; always resolves against the pipeline's own context for the current case. |
 | `apply_deterministic_overrides` | `code/main.py` | Post-processes the model's output, pinning evidence sufficiency and the three mechanically-derivable risk flags to the code-computed value regardless of what the model said. |
 | Evaluation harness | `code/evaluation/main.py` | Confusion matrix, precision/recall/coverage, false-positive cost model, two baselines. `--split held_out` required a one-time explicit opt-in flag; held-out has now been opened, at code freeze, with real results in the README. |
 | Dataset generator | `scripts/generate_dataset.py` | Deterministic, seeded synthetic case generator. Contains the ground-truth labelling rule — deliberately not importable from `code/main.py` (see §5). |
 | Adversarial suite | `tests/adversarial_regression/` | Fixed, publicly-documented injection-pattern fixtures + benign controls, run against the real pipeline. |
+| Web console | `app/server.py` | Read-only Flask UI over the pipeline. Calls `risk_signals`, `build_context` and the evaluation harness directly rather than reimplementing them; runs without credentials in REPLAY mode. |
 
 ## 3. Request flow
 
@@ -37,7 +38,7 @@ justification, a confidence score, and the specific evidence IDs cited.
 sequenceDiagram
     participant P as code/main.py
     participant C as llm_cache.py (disk)
-    participant M as Groq (qwen/qwen3.6-27b)
+    participant M as Gemini (gemini-3.8-flash)
     participant T as _execute_tool()
 
     P->>P: build_context() — evidence_sufficiency, amount_anomaly,<br/>merchant_repeat_pattern all computed here, deterministically
@@ -111,9 +112,8 @@ even where it costs a better-looking metric.
 
 ## 6. Reliability under real quota constraints
 
-Free-tier LLM quota (Groq: 200,000 tokens/day, enforced per account, not
-per key generated within an account — learned the hard way, see
-`NOTES.md`) is the binding constraint on how much live testing this
+Free-tier LLM quota (Gemini: 200,000 tokens/day, enforced per account, not
+per key generated within an account) is the binding constraint on how much live testing this
 project can do per day, not compute or code complexity. Mitigations, in
 the order they matter:
 
@@ -127,7 +127,8 @@ the order they matter:
    reproduces the identical failure at low temperature.
 5. A lock file (`tests/adversarial_regression/run_suite.py`) preventing
    two overlapping runs from racing on the same results file — added
-   after that race caused a real, documented regression (see `NOTES.md`).
+   after that race caused a real, documented regression (see
+   `ENGINEERING_DECISIONS.md`).
 
 ## 7. Security architecture
 
@@ -143,13 +144,16 @@ different ID, structurally, not by convention.
 
 - `tests/test_main.py`, `tests/test_evaluation.py`,
   `tests/test_adversarial_lock.py` — deterministic logic only, no API
-  calls, no network. 27 tests covering sanitization, deterministic
+  calls, no network. 33 tests covering sanitization, deterministic
   signals, tool argument isolation, the evaluation harness's math, and
-  the lock file's concurrency guarantee.
+  the lock file's concurrency guarantee. Seven further files — Razorpay
+  live and endpoint behaviour, the output-token and reasoning budgets,
+  the live-call deadline and partial-run reporting — bring the offline
+  suite to 256.
 - `tests/adversarial_regression/` — the one test suite that does call the
   real model, by design, since it's testing the model's actual behavior
-  under adversarial input, not code logic. Defense-only, scoped and named
-  per §6c of the brief (see that directory's own README for the required
+  under adversarial input, not code logic. Defense-only, deliberately
+  scoped and named as such (see that directory's own README for the
   posture statement).
 - `code/evaluation/main.py` — not a unit test, but functions as a
   regression check on model quality: run against dev after any prompt or

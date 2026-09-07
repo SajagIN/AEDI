@@ -1,25 +1,24 @@
 <div align="center">
-  <img src="assets/logo.png" alt=" logo" width="120">
+  <img src="assets/logo.png" alt="AEDI logo" width="120">
 
-  # TITLE
+  # AEDI
 
   ### BECAUSE A HUNCH ISN'T EVIDENCE
 
-  *Chargeback Evidence Responder — Razorpay AI Buildathon 2026, Track 02: AI Risk Manager*
+  *An AI risk agent for chargeback evidence review*
 
-  ![Track 02](https://img.shields.io/badge/TRACK_02-AI_RISK_MANAGER-2f6fed?style=for-the-badge)
-  ![Defense only](https://img.shields.io/badge/POSTURE-DEFENSE--ONLY-2f6fed?style=for-the-badge)
+  ![Posture](https://img.shields.io/badge/POSTURE-DEFENSE--ONLY-2f6fed?style=for-the-badge)
 
-  ![Tests](https://img.shields.io/badge/TESTS-33_PASSING-2ea44f?style=for-the-badge)
+  ![Tests](https://img.shields.io/badge/TESTS-256_PASSING-2ea44f?style=for-the-badge)
   ![Adversarial defense](https://img.shields.io/badge/ADVERSARIAL_DEFENSE-100%25-2ea44f?style=for-the-badge)
   ![False positives](https://img.shields.io/badge/FALSE_POSITIVES-ZERO-2ea44f?style=for-the-badge)
 
-  Built by **Aira K. Salish** ([@airasalish](https://github.com/airasalish))
+  Built by **SajagIN** ([@SajagIN](https://github.com/SajagIN))
 
   ---
 
   ### ZERO FALSE POSITIVES · ZERO FALSE NEGATIVES · 100% ADVERSARIAL DEFENSE
-  #### every number on this page is checked against its raw source before it's written down — see [NOTES.md](NOTES.md)
+  #### every number on this page is checked against its raw source before it is written down
 </div>
 
 ---
@@ -34,26 +33,92 @@ cites the specific evidence it relied on.
 > - Zero false positives, zero false negatives on every automated decision the agent committed to — **on both dev (100 cases) and held-out (50/50, opened once at code freeze)**, so it's not a dev-set artifact (see [Results](#results))
 > - 100% adversarial defense rate, 0% false positives on benign input (34/34 fixtures, complete — no fixtures skipped or rounded up)
 > - Two disclosed, honest gaps, not smoothed over: only 33% of risky cases get routed to a human (dev), and `accept_liability` recall drops from 92% to 71% on the complete, 50/50 held-out set — both quantified, neither explained away (see [Known limitations](#known-limitations))
-> - An informal search across this track's ~470 competing repos found only a handful mentioning "evaluation" and almost none with adversarial testing — this repo treats both as first-class, with real numbers, not an afterthought
-> - Every number below was checked against its raw source before being written down — including a mistake caught in this README's own draft, and a scoring bug caught seconds before it would have corrupted the held-out numbers (see [NOTES.md](NOTES.md))
+> - Evaluation and adversarial testing are treated as first-class here, with real numbers rather than assertions
+> - Every number below was checked against its raw source before being written down
 
-> **Status: complete (2026-09-04).** Architecture, dataset, deterministic
-> risk signals, the evaluation harness, and the adversarial regression
-> suite are all built with real, complete results below — dev-set (100/100),
-> adversarial-suite (34/34), and held-out (50/50, opened once at code
-> freeze) are all fully evaluated and reported honestly, including where
-> the results disagree with each other. See
-> [ARCHITECTURE.md](ARCHITECTURE.md) for the standalone architecture
-> document (required submission #3), [ENGINEERING_DECISIONS.md](ENGINEERING_DECISIONS.md)
-> for the reasoning behind every non-obvious choice, and
-> [NOTES.md](NOTES.md) for the live build log — including real bugs found
-> on live runs and how they were fixed.
+Architecture, dataset, deterministic risk signals, the evaluation harness,
+and the adversarial regression suite are all built with real, complete
+results below — dev-set (100/100), adversarial-suite (34/34), and held-out
+(50/50, opened once at code freeze) are all fully evaluated and reported
+honestly, including where the results disagree with each other. See
+[ARCHITECTURE.md](ARCHITECTURE.md) for the standalone architecture
+document and [ENGINEERING_DECISIONS.md](ENGINEERING_DECISIONS.md) for the
+reasoning behind every non-obvious choice, including the bugs that were
+found on live runs and how they were fixed.
 
-**Contents:** [Defense-only posture](#defense-only-posture) ·
+---
+
+## THE NAME
+
+**AEDI** — pronounced *EYE-dee* (or *AY-dee*).
+
+```
+                     A E D I
+                     │ │ │ └── Injections
+                     │ │ └──── Defense
+                     │ └────── Evidence
+                     └──────── Automated
+```
+
+*Automated Evidence, Defense against Injections* — the two halves of what this
+system actually is. It automates the evidence decision on a chargeback, and it
+treats the merchant's own text as hostile while doing it.
+
+The name is rooted in **aegis**, the shield: the defensive posture isn't a
+feature bolted onto a classifier, it's the reason the classifier is trustworthy
+enough to automate anything at all. A model that decides where money goes, fed
+free text written by the party with a financial stake in the outcome, needs a
+shield before it needs accuracy — which is why the adversarial regression suite
+reports a control false-positive rate next to its defense rate, and why
+`_execute_tool()` refuses to trust a single identifier the model supplies.
+
+**Contents:** [Quick start](#quick-start) · [Defense-only posture](#defense-only-posture) ·
 [Security](#security) · [Threat model](#the-threat-model) ·
 [Architecture](#architecture) · [Data model](#data-model) ·
 [Results](#results) · [Known limitations](#known-limitations) ·
-[What broke](#what-broke-and-how-i-fixed-it) · [Setup](#setup)
+[Setup](#setup)
+
+---
+
+## QUICK START
+
+**No API key needed for any of this.** Full instructions in [RUNNING.md](RUNNING.md).
+Presenting it to someone? [DEMO.md](DEMO.md) has the use case, a three-minute
+script and the hard questions with answers —
+[DEMO_HINDI.md](DEMO_HINDI.md) mein wahi script Hindi mein hai, click-by-click.
+
+```bash
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+
+# 1. Prove it works — 256 tests, no network, ~25s
+pip install -r requirements.txt
+python -m pytest tests/ -v
+
+# 2. Launch the web console -> http://127.0.0.1:8000
+pip install -r app/requirements.txt
+python app/server.py
+
+# 3. Or reproduce the held-out numbers on the command line
+python code/evaluation/main.py --split held_out \
+  --predictions dataset/held_out/output.csv --i-am-opening-held-out-for-real
+```
+
+### The console
+
+`app/server.py` puts a UI in front of the pipeline. It detects its own mode at
+startup: **REPLAY** without a `GEMINI_API_KEY` (every deterministic signal, the
+full evaluation harness and the committed predictions — no network at all), or
+**LIVE** with one (adds a button that runs the real agent loop on a single case).
+
+- **Case Explorer** — inspect a dispute's evidence with its pipeline-assigned
+  IDs, the reason code's requirement checklist, the deterministic risk signals
+  and the untrusted merchant narrative; then watch the pipeline trace step
+  through to a decision with the cited evidence highlighted and checked against
+  ground truth.
+- **Evaluation** — confusion matrix, precision/recall, coverage and cost model
+  for the agent and both baselines, computed in-process by
+  `code/evaluation/main.py`. Nothing on the page is hard-coded.
+- **Adversarial** — the 24 attack fixtures and 10 benign controls.
 
 ---
 
@@ -114,7 +179,7 @@ instruction (fine — that's the merchant reporting something) from text that
 sequenceDiagram
     participant P as code/main.py
     participant C as llm_cache.py (disk)
-    participant M as Groq (qwen/qwen3.6-27b)
+    participant M as Gemini (gemini-3.8-flash)
     participant T as _execute_tool()
 
     P->>P: build_context() — evidence_sufficiency, amount_anomaly,<br/>merchant_repeat_pattern all computed here, deterministically
@@ -163,7 +228,7 @@ dev numbers, used to iterate, not the final claim. Reproduce with
 | `contest` precision / recall | 75% / 100% | 69% / 100% | n/a / 0% |
 | `accept_liability` precision / recall | 69% / 92% | 58% / 100% | n/a / 0% |
 | Coverage (not routed to review) | 86% | 100% | 0% |
-| Expected cost per 100 cases (required, brief §6b) | **INR 2,100** | INR 0* | INR 15,000 |
+| Expected cost per 100 cases (primary cost model) | **INR 2,100** | INR 0* | INR 15,000 |
 | Cases needing review, correctly caught | **12/36 (33%)** | 0/36 (0%) | 36/36 (100%) |
 | Bonus: unpriced bypassed-review exposure per 100 cases† | **INR 18,442** | INR 27,367 | INR 0 |
 
@@ -173,21 +238,21 @@ the analyst-review cost, but it also never catches a single risky case
 (0/36). Its "free" number is the cost of being blind to risk, not the
 cost of being right.
 
-† **Not part of the brief's required cost model** — the brief prices
-exactly two error directions, and this is a third one it doesn't define
-a price for. Modeled as 10% of the transaction amount for every case
-that had a real risk signal but got auto-decided anyway, since that
-exposure scales with what's at stake, unlike the flat analyst-review
-cost above — a stated assumption, not a measured one. Reported
-separately, never folded into the required number, specifically so this
-doesn't get silently absorbed into "the cost is INR 2,100" when the full
-picture is meaningfully larger. This number is *why* the 33% coverage
-gap above is the real headline weakness, not a footnote to it.
+† **Not part of the primary cost model** — that model prices exactly two
+error directions, and this is a third one it doesn't define a price for.
+Modeled as 10% of the transaction amount for every case that had a real
+risk signal but got auto-decided anyway, since that exposure scales with
+what's at stake, unlike the flat analyst-review cost above — a stated
+assumption, not a measured one. Reported separately, never folded into
+the primary number, specifically so this doesn't get silently absorbed
+into "the cost is INR 2,100" when the full picture is meaningfully
+larger. This number is *why* the 33% coverage gap above is the real
+headline weakness, not a footnote to it.
 
 **What this shows, plainly:** when the agent commits to an automated
 decision (`contest` or `accept_liability`), it has been correct on
 direction every time in this sample — **zero false positives and zero
-false negatives** on the classes that carry the brief's defined cost. The
+false negatives** on the classes that carry the defined cost. The
 agent actually has *higher precision* than the rules-only baseline on
 both classes (75% vs 69%, 69% vs 58%) — because correctly diverting a
 third of risk-flagged cases to `manual_review` means it isn't blindly
@@ -216,11 +281,9 @@ smoothly:** a first pass reached 33/34 genuine before a race-condition
 regression between two overlapping runs dropped it to 21/34 — a lock file
 now makes that structurally impossible, and every fixture from that point
 was recovered incrementally, in verified batches, as API quota allowed
-across 6 working keys (a 7th, `GROQ_API_KEY_2`, turned out to be
-genuinely invalid, not just rate-limited). Every number in the table above
-was confirmed directly against each fixture's stored response before
-being reported — never taken from a summary line at face value. Full
-story, including the exact bugs found along the way, in `NOTES.md`.
+across several working keys. Every number in the table above was
+confirmed directly against each fixture's stored response before being
+reported — never taken from a summary line at face value.
 
 **Held-out (50 cases, opened once, at code freeze — 50/50 genuinely
 evaluated, complete).** This is the actual headline result the rest of
@@ -232,16 +295,16 @@ no asterisks about quota. Reproduce with `--split held_out`.
 | `contest` precision / recall | 73% / 100% | 75% / 100% |
 | `accept_liability` precision / recall | 75% / 71% | 69% / 92% |
 | Coverage | 76% | 86% |
-| Expected cost per 100 cases (required) | **INR 3,600** | INR 2,100 |
+| Expected cost per 100 cases (primary) | **INR 3,600** | INR 2,100 |
 | Bonus: unpriced bypassed-review exposure per 100 | INR 17,493 | INR 18,442 |
 
 **What holds up, and what doesn't:** zero false positives and zero false
 negatives on committed decisions — same as dev, on the complete held-out
 set the system never touched during any tuning. That's the number that
 actually matters most: it means the "never wrong on direction when it
-commits" result isn't an artifact of dev-set familiarity, and it's now
+commits" result isn't an artifact of dev-set familiarity, and it's
 confirmed on the full 50, not a partial sample. What's *not* the same:
-`accept_liability` recall on held-out — 67%, 67%, 71%, and now 71% final
+`accept_liability` recall on held-out — 67%, 67%, 71%, and 71% final
 across four progressively larger readings (n=36, 42, 45, 50) — moved a
 little as more data came in, as expected on a small sample, but stayed
 consistently well below dev's 92% in every single reading. That's the
@@ -263,24 +326,25 @@ explained away.
   decision was still correct — but the *rate* of correctly reaching
   `accept_liability` specifically (rather than routing to review) was
   lower on data the system never saw during dev iteration. Worth
-  investigating further with more data if this pipeline is ever extended
-  past this submission; reported honestly here rather than investigated
-  further under time pressure and called complete.
-- **Manual-review coverage is the real gap, not a hidden one — and now
+  investigating further with more data if this pipeline is ever extended;
+  reported honestly here rather than investigated further under time
+  pressure and called complete.
+- **Manual-review coverage is the real gap, not a hidden one — and
   confirmed hard to move, not just under-attempted.** The agent correctly
   identifies risk signals in code (`merchant_repeat_pattern`,
   `amount_anomaly` are pinned deterministically, always accurate) but
   doesn't reliably let a true risk flag override otherwise-clean evidence
-  in its final decision. Three separate prompt attempts (see `NOTES.md`):
-  the third — inline reminders attached to the actual flag value, plus a
-  worked example — was tested with a controlled before/after on the
-  identical 32 risk-flagged cases and **caught exactly the same 12 both
-  times.** Not an estimate; the same case IDs, confirmed by direct
-  comparison. Explicitly rejected hard-coding the override in code
-  instead, since that would make the pipeline mechanically agree with its
-  own eval's answer key on that exact boundary — see
-  `ENGINEERING_DECISIONS.md`. This is reported as a real, now-verified
-  result, not patched to look better and not left at "still trying."
+  in its final decision. Three separate prompt attempts (see
+  `ENGINEERING_DECISIONS.md`): the third — inline reminders attached to
+  the actual flag value, plus a worked example — was tested with a
+  controlled before/after on the identical 32 risk-flagged cases and
+  **caught exactly the same 12 both times.** Not an estimate; the same
+  case IDs, confirmed by direct comparison. Explicitly rejected
+  hard-coding the override in code instead, since that would make the
+  pipeline mechanically agree with its own eval's answer key on that exact
+  boundary — see `ENGINEERING_DECISIONS.md`. This is reported as a real,
+  verified result, not patched to look better and not left at "still
+  trying."
 - **Labels are rubric-derived on synthetic data**, not sourced from real
   dispute outcomes — see `dataset/LABELLING_RUBRIC.md` §6. The rubric is
   mechanical (3 features, deterministic rule), which is what makes it
@@ -294,18 +358,16 @@ explained away.
   git-ignored). Fine for this synthetic dataset; would need fixing before
   pointing this at real chargeback evidence. See `SECURITY.md`.
 
-## What broke and how I fixed it
-
-See `NOTES.md` — kept live from Day 1, per Razorpay's explicit ask for this.
-
 ## Setup
+
+See [RUNNING.md](RUNNING.md) for the full guide, including troubleshooting.
 
 ```bash
 cd code
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r ../requirements.txt
-cp ../.env.example ../.env  # then add your own GROQ_API_KEY — never commit .env
+cp ../.env.example ../.env  # then add your own GEMINI_API_KEY — never commit .env
 cp ../scripts/pre-commit ../.git/hooks/pre-commit  # blocks a commit if it finds a leaked key
 ```
 
@@ -325,8 +387,7 @@ python main.py --input dataset/dev/cases.csv --output dataset/dev/output.csv
 ```
 
 Score the predictions (`--predictions` is resolved against the repo root,
-not your shell's cwd — don't prefix it with `../`, that's a real mistake
-this project's own scripts hit once, see `NOTES.md`):
+not your shell's cwd — don't prefix it with `../`):
 
 ```bash
 python evaluation/main.py --split dev --predictions dataset/dev/output.csv

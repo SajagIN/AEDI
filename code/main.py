@@ -1,33 +1,3 @@
-"""
-Chargeback Evidence Responder — main entry point.
-
-Track 2 (AI Risk Manager), one class of loss: chargebacks. Reads a
-chargeback case (reason code, transaction, merchant-submitted evidence,
-merchant narrative, merchant history) and decides whether the evidence
-supports contesting the chargeback, supports accepting liability, or is
-insufficient/ambiguous enough to need a human.
-
-Architecture ported from two prior Orchestrate builds (see NOTES.md):
-KeyPool, sanitize(), _execute_tool(), the bounded _run_agent_turn() loop,
-and resume/is_fallback_row() come from the August build (WhatsApp routing
-domain). The three-way decision shape and the "grounded citation only"
-evidence pattern come from the June build (damage-claim domain). Both are
-domain-adapted here, not copied verbatim where the domain differs.
-
-The differentiating angle: merchant-submitted narrative text is untrusted
-input flowing into an LLM that makes a money decision. A merchant who can
-write text into an evidence field does not need to beat the model — they
-can try to instruct it. See SYSTEM_PROMPT's untrusted-input block.
-
-Every LLM call is cache-checked first (llm_cache.py) — re-running this
-script over the same cases costs zero additional API calls for anything
-already seen.
-
-Usage:
-    python code/main.py [--dataset-dir dataset] [--output dataset/output.csv]
-
-Requires: at least GROQ_API_KEY in .env or environment (GROQ_API_KEY_2, _3, ... optional)
-"""
 
 import argparse
 import csv
@@ -39,7 +9,7 @@ import time
 from pathlib import Path
 
 from dotenv import load_dotenv
-from groq import Groq
+from gemini_client import GeminiClient
 
 from llm_cache import ResponseCache
 import risk_signals
@@ -47,14 +17,8 @@ import risk_signals
 load_dotenv()
 
 REPO_ROOT = Path(__file__).parent.parent
-MODEL = "qwen/qwen3.6-27b"
+MODEL = os.environ.get("AEDI_MODEL", "").strip() or "gemini-3.8-flash"
 
-# ── Allowed value sets ────────────────────────────────────────────────────
-# `manual_review` is an abstention, not a class with its own precision/recall
-# target — `contest` is the positive class (the action with money
-# consequences). See §6a of the brief: coverage (share decided automatically
-# vs routed to review) is reported alongside precision/recall specifically
-# so a system that abstains on everything doesn't look artificially good.
 DECISION_VALUES = {"contest", "accept_liability", "manual_review"}
 EVIDENCE_SUFFICIENCY_VALUES = {"sufficient", "insufficient", "not_enough_information"}
 RISK_FLAG_VALUES = {
@@ -73,11 +37,6 @@ OUTPUT_COLUMNS = [
     "reason", "confidence", "cited_evidence_ids",
 ]
 
-# Fields the model must return on every call. A response missing any of
-# these is a failed attempt (retried, then falls back to a manual-review
-# row) rather than being allowed to crash format_row's dict indexing — this
-# is the exact June-build defect (direct dict indexing, no presence check)
-# that judges flagged; fixed here from the start instead of patched later.
 REQUIRED_MODEL_FIELDS = {
     "decision", "evidence_sufficiency", "risk_flags",
     "reason", "confidence", "cited_evidence_ids",
@@ -108,7 +67,7 @@ wasting representment effort.
 weigh — this is an abstention, not a finding. Prefer this over guessing when signals conflict.
 
 evidence_sufficiency: sufficient / insufficient / not_enough_information — whether what was submitted \
-meets the MINIMUM_EVIDENCE_REQUIRED for this case's reason code. IMPORTANT: lookup_case_evidence returns \
+meets the MIGeminiUM_EVIDENCE_REQUIRED for this case's reason code. IMPORTANT: lookup_case_evidence returns \
 this already computed for you (evidence_sufficiency_precomputed, and missing_evidence_types if any) — \
 it is matched deterministically against the reason code's required evidence types, not a judgment call. \
 Copy that value into your output rather than re-deriving it from the descriptions yourself; the pipeline \
@@ -198,28 +157,20 @@ Return JSON only — no markdown fences, no extra keys."""
 
 
 class KeyPool:
-    """Round-robins across every GROQ_API_KEY / GROQ_API_KEY_2 / GROQ_API_KEY_3 ... found
-    in the environment, spreading per-minute rate-limit load across all of them instead of
-    hammering one key. Does NOT multiply the daily token cap by itself — Groq's daily quota
-    is per ACCOUNT, so multiple keys generated from the same account share one pool
-    (confirmed directly from the API: same-account keys show the identical `organization`
-    ID when rate-limited, see NOTES.md). Real daily-cap headroom only comes from keys on
-    genuinely separate accounts. Ported as-is from the August Orchestrate build — generic,
-    no domain coupling."""
 
     def __init__(self):
         keys = []
         for name, value in os.environ.items():
-            if re.fullmatch(r"GROQ_API_KEY(_\d+)?", name) and value:
+            if re.fullmatch(r"GEMINI_API_KEY(_\d+)?", name) and value:
                 keys.append((name, value))
         if not keys:
-            sys.exit("Error: no GROQ_API_KEY* found. Get a free key at https://console.groq.com")
+            sys.exit("Error: no GEMINI_API_KEY* found. Get a free key at https://aistudio.google.com/apikey")
         keys.sort(key=lambda kv: kv[0])
         self.names = [k for k, _ in keys]
-        self.clients = [Groq(api_key=v) for _, v in keys]
+        self.clients = [GeminiClient(api_key=v) for _, v in keys]
         self._i = 0
-        self._dead_until: dict = {}  # name -> unix ts when it's worth retrying
-        print(f"Key pool: {len(self.clients)} Groq key(s) - {', '.join(self.names)}")
+        self._dead_until: dict = {}
+        print(f"Key pool: {len(self.clients)} Gemini key(s) - {', '.join(self.names)}")
 
     def next(self):
         now = time.time()
@@ -248,19 +199,6 @@ def load_list(path: Path) -> list:
 
 
 class Dataset:
-    """Loads every context CSV once. Expected files (see dataset/LABELLING_RUBRIC.md
-    for the full rubric these files support):
-
-    - cases.csv / dev/cases.csv / held_out/cases.csv: case_id, merchant_id, amount,
-      original_amount, currency, reason_code, transaction_date, payment_method,
-      evidence_items (pipe-separated "type_tag: description" entries), merchant_narrative
-    - merchant_history.csv (keyed by merchant_id): chargeback_rate_30d,
-      chargeback_rate_90d, total_transactions_30d, prior_contest_win_rate,
-      history_flags
-    - reason_code_requirements.csv: reason_code, network, description,
-      minimum_evidence_required (human text), required_evidence_types
-      (pipe-separated machine tags matched against evidence_items' type tags)
-    """
 
     def __init__(self, dataset_dir: Path):
         self.dir = dataset_dir
@@ -269,27 +207,10 @@ class Dataset:
 
 
 def enumerate_evidence(row: dict) -> list:
-    """Deterministically assigns an evidence_id (and parses the type tag)
-    for each of the merchant's submitted evidence items, in file order. The
-    model may only cite IDs from this list — it never invents one. This is
-    the chargeback-domain equivalent of find_evidence_candidates() in the
-    August build: there, candidates were searched out of OTHER historical
-    messages; here, the case's own submitted evidence items already ARE the
-    full candidate set, so this enumerates rather than searches. Either way
-    the principle is the same — the pipeline computes the citable set, not
-    the model. Thin wrapper around risk_signals.parse_evidence_items so the
-    dataset generator and the runtime pipeline can never disagree about
-    what an evidence item's type is."""
     return risk_signals.parse_evidence_items(row)
 
 
 def build_context(ds: Dataset, row: dict) -> dict:
-    """Assemble structured context for one case. The evidence-sufficiency,
-    amount-anomaly, and merchant-repeat-pattern signals are computed here in
-    code (risk_signals.py) and handed to the model as facts via the tools —
-    the model is not asked to re-derive them from raw numbers. What IS left
-    to the model: reading the narrative for contradiction or injection
-    attempts, and synthesizing all of this into a decision."""
     merchant = ds.merchant_history.get(row["merchant_id"], {})
     req = ds.reason_requirements.get(row["reason_code"], {})
 
@@ -396,10 +317,6 @@ AGENT_TOOLS = [LOOKUP_CASE_EVIDENCE_TOOL, LOOKUP_MERCHANT_HISTORY_TOOL, CLASSIFY
 
 
 def build_messages(row: dict, ctx: dict) -> list:
-    """Builds the system+user message pair for round 1 — case identifiers
-    only; the transaction/evidence/history detail is deliberately withheld
-    until the model requests it via a tool call, same as the August build's
-    pattern of not front-loading everything into round 1."""
     parts = [
         f"Case ID: {row['case_id']}",
         f"Reason code: {row.get('reason_code','?')}",
@@ -414,6 +331,90 @@ def build_messages(row: dict, ctx: dict) -> list:
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": "\n\n".join(parts)},
     ]
+
+
+ROUND_MAX_TOKENS = 1500
+CLASSIFY_MAX_TOKENS = 3800
+
+ENABLE_THINKING = os.environ.get("AEDI_ENABLE_THINKING", "").strip().lower() in ("1", "true", "yes")
+THINKING_BUDGET = 8192
+
+
+def thinking_extra_body(enabled: bool = None) -> dict:
+    on = ENABLE_THINKING if enabled is None else enabled
+    return {"thinking_budget": THINKING_BUDGET if on else 0}
+
+
+MIN_USABLE_OUTPUT_TOKENS = 256
+
+_OTPM_RE = re.compile(r"output tokens per minute.{0,80}?Limit (\d+)", re.I | re.S)
+
+
+def _initial_output_ceiling():
+    raw = os.environ.get("AEDI_MAX_OUTPUT_TOKENS", "").strip()
+    if not raw:
+        return None
+    try:
+        return max(MIN_USABLE_OUTPUT_TOKENS, int(raw))
+    except ValueError:
+        print(f"  Ignoring non-numeric AEDI_MAX_OUTPUT_TOKENS={raw!r}", file=sys.stderr)
+        return None
+
+
+_OUTPUT_TOKEN_CEILING = _initial_output_ceiling()
+
+
+def _thinking_floor(ask: int) -> int:
+    return max(ask, THINKING_BUDGET) if ENABLE_THINKING else ask
+
+
+def output_token_budget(requested: int) -> int:
+    requested = _thinking_floor(requested)
+    if _OUTPUT_TOKEN_CEILING is None:
+        return requested
+    return max(MIN_USABLE_OUTPUT_TOKENS, min(requested, _OUTPUT_TOKEN_CEILING))
+
+
+def note_output_token_limit(err: str) -> bool:
+    global _OUTPUT_TOKEN_CEILING
+    m = _OTPM_RE.search(err)
+    if not m:
+        return False
+    limit = int(m.group(1))
+    new = limit if _OUTPUT_TOKEN_CEILING is None else min(_OUTPUT_TOKEN_CEILING, limit)
+    new = max(MIN_USABLE_OUTPUT_TOKENS, new)
+    if new == _OUTPUT_TOKEN_CEILING:
+        return False
+    _OUTPUT_TOKEN_CEILING = new
+    print(f"  OTPM ceiling detected: capping output at {new} tokens/request for the rest of "
+          f"this run (export AEDI_MAX_OUTPUT_TOKENS={new} to skip this discovery next time).",
+          file=sys.stderr)
+    if new < CLASSIFY_MAX_TOKENS:
+        print(f"  Note: the forced classification round normally asks for {CLASSIFY_MAX_TOKENS} "
+              f"output tokens and is now capped at {new}. Long reasons may be truncated, and "
+              f"this account can place roughly one call per minute. For an interactive demo "
+              f"consider a model with a higher free-tier OTPM via AEDI_MODEL, or raise the "
+              f"limit at https://aistudio.google.com/apikey.", file=sys.stderr)
+    return True
+
+
+def is_output_token_limit(err: str) -> bool:
+    return bool(_OTPM_RE.search(err))
+
+
+class OutputBudgetTooSmall(RuntimeError):
+    pass
+
+
+_TOOL_USE_FAILED_RE = re.compile(r"tool_use_failed", re.I)
+
+
+def is_starved_tool_call(err: str) -> bool:
+    if not _TOOL_USE_FAILED_RE.search(err):
+        return False
+    return bool(re.search(r"'failed_generation':\s*''", err) or
+                re.search(r'"failed_generation":\s*""', err)) or \
+        "failed_generation" not in err
 
 
 def _parse_wait_seconds(err: str, default: float) -> float:
@@ -432,16 +433,16 @@ def _handle_error(pool: KeyPool, key_name: str, err: str) -> float:
     if "tokens per day" in low or "(tpd)" in low:
         pool.mark_dead(key_name, _parse_wait_seconds(err, 900) + 5)
         return 2
+    if note_output_token_limit(err):
+        return 0
+    if is_output_token_limit(err):
+        return _parse_wait_seconds(err, 60)
     if "429" in err or "rate_limit" in low:
         return _parse_wait_seconds(err, 15)
     return 5
 
 
 def sanitize(result: dict) -> dict:
-    """Coerces a raw model result into safe, allowed-value output: invalid
-    decision/evidence_sufficiency fall back to safe defaults, confidence is
-    clamped to [0,1], risk_flags is filtered to the allowed set, and
-    cited_evidence_ids is normalized to a semicolon-separated string."""
     if result.get("decision") not in DECISION_VALUES:
         result["decision"] = "manual_review"
     if result.get("evidence_sufficiency") not in EVIDENCE_SUFFICIENCY_VALUES:
@@ -469,9 +470,6 @@ def sanitize(result: dict) -> dict:
     if not result.get("reason"):
         result["reason"] = "No justification provided by the model."
 
-    # manual_review_required must accompany decision=manual_review, so the
-    # audit trail is consistent even if the model set the decision but
-    # forgot the flag.
     if result["decision"] == "manual_review" and "manual_review_required" not in result["risk_flags"]:
         result["risk_flags"].append("manual_review_required")
 
@@ -479,20 +477,6 @@ def sanitize(result: dict) -> dict:
 
 
 def apply_deterministic_overrides(result: dict, ctx: dict) -> dict:
-    """Pins evidence_sufficiency and the three mechanically-derivable risk
-    flags (evidence_incomplete_for_reason_code, amount_anomaly,
-    merchant_repeat_pattern) to the values computed in risk_signals.py,
-    regardless of what the model returned. These are objective facts about
-    the case, not judgment calls, so there's no reason to let model error
-    leak into fields that are fully computable — the same principle as the
-    June build's rule that valid_image=false forces
-    evidence_standard_met=false in code rather than trusting the model to
-    apply it consistently.
-
-    decision, narrative_contradicts_transaction, prompt_injection_attempt,
-    domain_or_channel_mismatch, reason, confidence, and cited_evidence_ids
-    are untouched — those require reading the narrative and evidence, which
-    is the model's actual job here."""
     result["evidence_sufficiency"] = ctx["evidence_sufficiency_precomputed"]
 
     flags = set(result["risk_flags"]) - {"none"}
@@ -515,22 +499,6 @@ def apply_deterministic_overrides(result: dict, ctx: dict) -> dict:
 
 
 def _execute_tool(name: str, ctx: dict) -> dict:
-    """Executes an info-gathering tool. Deliberately ignores whatever
-    arguments the model supplied (case_id, merchant_id, etc.) and always
-    resolves against ctx — the real, pre-computed data for the CURRENT
-    case — so a hallucinated or manipulated identifier can never leak
-    another case's or merchant's data. The tool's authority is the
-    pipeline's own ground truth, not the model's claim about which record
-    it wants. Ported as-is in spirit from the August build."""
-    # Third attempt at the manual_review-coverage gap (see NOTES.md,
-    # ENGINEERING_DECISIONS.md): two prompt-only attempts that stated the
-    # override rule once, in the abstract, in the system prompt, weren't
-    # reliably followed — a real risk flag would come back true and the
-    # model would still just... proceed as if it hadn't. Different tactic
-    # this time: repeat the instruction INLINE, attached to the actual
-    # flag value at the moment the model reads it, instead of only in a
-    # system-prompt paragraph written before the model has seen any real
-    # data. Proximity to the fact, not just louder wording.
     RISK_FLAG_REMINDER = (
         "This flag is TRUE for this case. Per your instructions, manual_review is your "
         "default decision when this is true — evidence being otherwise sufficient is not, "
@@ -561,25 +529,15 @@ def _execute_tool(name: str, ctx: dict) -> dict:
 
 
 def _normalize_response(response) -> dict:
-    """Normalizes a Groq SDK response into a plain dict of {content,
-    tool_calls}, so the rest of the pipeline (and the cache) never touches
-    the SDK's response objects directly."""
     msg = response.choices[0].message
     return {
         "content": msg.content or "",
         "tool_calls": [tc.model_dump() for tc in (msg.tool_calls or [])],
+        "reasoning": (getattr(msg, "reasoning_content", None) or "")[:400],
     }
 
 
 class LLMCallError(Exception):
-    """Wraps an API-level failure together with the exact key_name that
-    caused it. Exists because a naive `except Exception: pool.next()` at
-    the call site to "find out which key failed" doesn't work — pool.next()
-    just returns whatever's next in rotation, unrelated to which key
-    actually threw. That bug was live in this file (analyze_case used to
-    do exactly this) and meant a real key's failure could get mark_dead()
-    called on a completely different, healthy key. Attaching the key_name
-    at the exact point of failure is the only reliable way to know it."""
     def __init__(self, original: Exception, key_name: str):
         super().__init__(str(original))
         self.original = original
@@ -587,8 +545,6 @@ class LLMCallError(Exception):
 
 
 def _call_llm(pool: KeyPool, cache: ResponseCache, **kwargs) -> tuple:
-    """Cache-checked LLM call. Returns (normalized_response_dict, key_name_or_None).
-    key_name is None on a cache hit, since no key was actually used."""
     cache_key_payload = {
         "model": kwargs.get("model"),
         "messages": kwargs.get("messages"),
@@ -611,13 +567,6 @@ def _call_llm(pool: KeyPool, cache: ResponseCache, **kwargs) -> tuple:
 
 
 def _recover_failed_generation(exc: Exception):
-    """Groq's forced-tool_choice path sometimes rejects a call with 400
-    tool_use_failed even though the model produced a complete, correctly
-    shaped JSON answer as plain text — visible in the error body's
-    failed_generation field. Recovers that answer instead of discarding a
-    real result and burning a retry. Unwraps LLMCallError first since
-    the original Groq exception (with its .body attribute) is what
-    actually carries this, not the wrapper."""
     original = exc.original if isinstance(exc, LLMCallError) else exc
     body = getattr(original, "body", None)
     text = None
@@ -646,34 +595,19 @@ FORCE_CLASSIFY_NUDGE = (
 
 def _run_agent_turn(pool: KeyPool, cache: ResponseCache, base_messages: list, ctx: dict,
                      max_rounds: int = 2, force_local_retries: int = 3) -> tuple:
-    """Bounded agentic loop: round 1 offers all 3 tools with tool_choice="auto"
-    — the model can call lookup_case_evidence and/or lookup_merchant_history
-    to gather signal, or go straight to classify_chargeback if the case is
-    fully decidable already. Round 2 (the last allowed round) forces
-    tool_choice to classify_chargeback specifically, guaranteeing
-    termination with a structured answer within a hard cap of max_rounds.
-    Returns (result_dict, key_name_used_for_final_call_or_None).
-
-    The forced round gets its own local retry loop (force_local_retries), not
-    just the outer per-case retry in analyze_case. This matters because a
-    retry with an IDENTICAL request at temperature=0.1 tends to reproduce the
-    same failure rather than recover from it — observed directly on the dev
-    set's first real run (NOTES.md, Day 3): the model would repeat the exact
-    same wrong tool call 3 times in a row against an unchanged prompt. Each
-    local retry here appends FORCE_CLASSIFY_NUDGE, which actually changes the
-    request, instead of resending the same one and hoping for a different
-    result."""
     messages = list(base_messages)
     last_key_name = None
+    force_no_reasoning = False
     for round_num in range(max_rounds):
         force_classify = round_num == max_rounds - 1
-        local_attempts = force_local_retries if force_classify else 1
+        local_attempts = force_local_retries if force_classify else 2
 
         norm = None
         for local_attempt in range(local_attempts):
+            budget = output_token_budget(CLASSIFY_MAX_TOKENS if force_classify else ROUND_MAX_TOKENS)
             kwargs = dict(model=MODEL, messages=messages, temperature=0.1,
-                          max_tokens=3800 if force_classify else 1500,
-                          extra_body={"reasoning_format": "hidden"})
+                          extra_body=thinking_extra_body(False if force_no_reasoning else None),
+                          max_tokens=budget)
             if force_classify:
                 kwargs["tools"] = [CLASSIFY_CHARGEBACK_TOOL]
                 kwargs["tool_choice"] = {"type": "function", "function": {"name": "classify_chargeback"}}
@@ -690,9 +624,23 @@ def _run_agent_turn(pool: KeyPool, cache: ResponseCache, base_messages: list, ct
                     recovered = _recover_failed_generation(e)
                     if recovered is not None:
                         return recovered, last_key_name
-                    if local_attempt < local_attempts - 1:
-                        messages = messages + [{"role": "user", "content": FORCE_CLASSIFY_NUDGE}]
+
+                if is_starved_tool_call(str(e)):
+                    if not force_no_reasoning:
+                        force_no_reasoning = True
+                        print(f"  Model returned an empty generation at a {budget}-token budget "
+                              f"— retrying with reasoning disabled.", file=sys.stderr)
                         continue
+                    raise OutputBudgetTooSmall(
+                        f"The model produced no output at all within {budget} tokens, even "
+                        f"with reasoning disabled. That budget is too small for this task. "
+                        f"Raise the account's output-tokens-per-minute limit, or set "
+                        f"AEDI_MODEL to a model with more headroom."
+                    ) from e
+
+                if force_classify and local_attempt < local_attempts - 1:
+                    messages = messages + [{"role": "user", "content": FORCE_CLASSIFY_NUDGE}]
+                    continue
                 raise
 
         if not norm["tool_calls"]:
@@ -719,15 +667,10 @@ def _run_agent_turn(pool: KeyPool, cache: ResponseCache, base_messages: list, ct
     raise RuntimeError("agent loop exceeded max_rounds without classify_chargeback")
 
 
-def analyze_case(pool: KeyPool, cache: ResponseCache, row: dict, ctx: dict, retries: int = 3) -> dict:
-    """Runs the agent loop for one case with retry-across-keys on failure;
-    validates the result has every required field before returning it, and
-    degrades to a safe fallback row if all retries are exhausted. retries=3
-    here (not 6) because the forced round now has its own internal retry
-    with a corrective nudge (see _run_agent_turn) — this outer loop is a
-    backstop for whole-attempt failures (network, key exhaustion), not the
-    primary recovery path for a malformed forced-round response anymore."""
+def analyze_case(pool: KeyPool, cache: ResponseCache, row: dict, ctx: dict, retries: int = 3,
+                 max_wait: float = None) -> dict:
     base_messages = build_messages(row, ctx)
+    last_error = None
     for attempt in range(retries):
         try:
             result, key_name = _run_agent_turn(pool, cache, base_messages, ctx)
@@ -738,23 +681,30 @@ def analyze_case(pool: KeyPool, cache: ResponseCache, row: dict, ctx: dict, retr
                 raise ValueError(f"model response missing required fields: {sorted(missing)}")
             return apply_deterministic_overrides(sanitize(result), ctx)
         except Exception as e:
+            last_error = e
+            if isinstance(e, OutputBudgetTooSmall):
+                print(f"  {e}", file=sys.stderr)
+                break
             if isinstance(e, LLMCallError):
-                # The key that actually failed, attached at the point of
-                # failure — not re-guessed via another pool.next() call,
-                # which would just return whatever's next in rotation and
-                # could mark a completely different, healthy key dead.
                 key_name = e.key_name
                 wait = _handle_error(pool, key_name, str(e.original))
             else:
-                # A non-API failure (JSON parsing, max_rounds exceeded,
-                # etc.) isn't attributable to any specific key, so there's
-                # nothing to mark dead — just back off briefly and retry.
                 key_name = "n/a"
                 wait = 5
+            if max_wait is not None and wait > max_wait:
+                print(f"  Error attempt {attempt + 1} on {key_name}: {e}", file=sys.stderr)
+                print(f"  Needed to wait {wait:.0f}s but the caller allows {max_wait:.0f}s — "
+                      f"giving up rather than blocking.", file=sys.stderr)
+                break
             print(f"  Error attempt {attempt + 1} on {key_name} (wait {wait:.0f}s): {e}", file=sys.stderr)
             if attempt < retries - 1:
                 time.sleep(wait)
-    return dict(SAFE_FALLBACK)
+
+    fallback = dict(SAFE_FALLBACK)
+    if last_error is not None:
+        original = getattr(last_error, "original", last_error)
+        fallback["_error"] = f"{type(original).__name__}: {original}"
+    return fallback
 
 
 def format_row(case_id: str, result: dict) -> dict:
@@ -770,17 +720,15 @@ def format_row(case_id: str, result: dict) -> dict:
     }
 
 
+def is_fallback_result(result: dict) -> bool:
+    return result.get("reason") == SAFE_FALLBACK["reason"]
+
+
 def is_fallback_row(r: dict) -> bool:
-    """True if this row is the safe-fallback placeholder rather than a real
-    analysis — used so resume doesn't mistake a fallback for a completed
-    row and skip retrying it."""
     return r.get("reason") == SAFE_FALLBACK["reason"]
 
 
 def process_cases(cases_path: Path, dataset_dir: Path, output_path: Path) -> None:
-    """Runs analyze_case over every pending row and writes output.csv
-    incrementally, resuming from a prior run by skipping genuinely-done
-    rows and retrying only fallbacks."""
     pool = KeyPool()
     cache = ResponseCache()
     ds = Dataset(dataset_dir)
@@ -817,7 +765,7 @@ def process_cases(cases_path: Path, dataset_dir: Path, output_path: Path) -> Non
         print(f"  [{len(done_ids) + i}/{len(rows)}] {row['case_id']} -> {result['decision']}", flush=True)
 
         with open(output_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=OUTPUT_COLUMNS)
+            writer = csv.DictWriter(f, fieldnames=OUTPUT_COLUMNS, lineterminator="\n")
             writer.writeheader()
             for r in rows:
                 if r["case_id"] in results_by_id:
@@ -827,14 +775,6 @@ def process_cases(cases_path: Path, dataset_dir: Path, output_path: Path) -> Non
 
 
 def main() -> None:
-    """--input and --output (like --dataset-dir) are always resolved
-    against REPO_ROOT, never the invoking shell's cwd. This used to be
-    inconsistent — --output was REPO_ROOT-relative but --input was
-    cwd-relative, in the same command — and directly caused two real bugs
-    in one session: a case run silently writing outside the project when
-    invoked from code/, and a fallback-retry re-running all 100 cases
-    from scratch because resume detection looked in the wrong place. Both
-    flags now behave the same way on purpose."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset-dir", default="dataset")
     parser.add_argument("--input", default=None, help="Resolved against the repo root, not cwd.")

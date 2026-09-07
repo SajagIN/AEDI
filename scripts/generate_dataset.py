@@ -1,22 +1,3 @@
-"""
-Generates the synthetic chargeback dataset per dataset/LABELLING_RUBRIC.md.
-
-Deterministic given SEED — re-running this script reproduces byte-identical
-output, which is what makes "the labels are rubric-derived, not
-model-derived" a checkable claim rather than an assertion.
-
-IMPORTANT — label_case() lives ONLY in this file, not in code/risk_signals.py
-or anywhere code/main.py can import from. That's deliberate: code/main.py
-uses risk_signals.py's FEATURE functions (evidence_sufficiency,
-is_amount_anomaly, is_merchant_repeat_pattern) to hand the model computed
-facts, but the runtime pipeline has no code path to the DECISION rule that
-turns those features into a ground-truth label. If it did, "the pipeline
-predicts its own eval labels" would be a fair circularity objection. It
-doesn't, so it isn't.
-
-Usage:
-    python scripts/generate_dataset.py
-"""
 
 import csv
 import random
@@ -34,7 +15,6 @@ N_TOTAL = N_DEV + N_HELD_OUT
 
 DATASET_DIR = REPO_ROOT / "dataset"
 
-# ── Reason codes ──────────────────────────────────────────────────────────
 REASON_CODES = {
     "10.4": {
         "network": "Visa", "description": "Card-absent fraud (cardholder says they didn't authorize it)",
@@ -132,9 +112,6 @@ random.seed(SEED)
 
 
 def make_merchants() -> list:
-    """20 synthetic merchants. 4 are deliberately 'risky' (chargeback rate
-    above baseline AND poor contest win rate) so merchant_repeat_pattern
-    has real positive cases to be evaluated against, not just theory."""
     merchants = []
     for i in range(1, 21):
         merchant_id = f"mch_{i:03d}"
@@ -157,15 +134,13 @@ def make_merchants() -> list:
 
 
 def make_evidence_items_string(required_types: list, bucket: str) -> str:
-    """bucket: 'full' (all required + maybe 1 extra), 'partial' (missing
-    exactly one required type), 'none' (nothing submitted)."""
     if bucket == "none":
         return ""
     types_to_include = list(required_types)
     if bucket == "partial" and len(types_to_include) > 1:
         types_to_include.pop(random.randrange(len(types_to_include)))
     elif bucket == "partial" and len(types_to_include) == 1:
-        return ""  # single-requirement codes: "partial" degrades to nothing submitted
+        return ""
     items = []
     for t in types_to_include:
         desc = random.choice(EVIDENCE_DESCRIPTIONS[t])
@@ -177,13 +152,6 @@ def make_evidence_items_string(required_types: list, bucket: str) -> str:
 
 
 def label_case(case: dict, req: dict, merchant: dict) -> tuple:
-    """THE ground-truth decision rule — dataset/LABELLING_RUBRIC.md §4,
-    applied here in code, never by the LLM under test. First matching rule
-    wins:
-      1. amount_anomaly or merchant_repeat_pattern -> manual_review
-      2. evidence sufficient -> contest
-      3. else -> accept_liability
-    """
     evidence_items = risk_signals.parse_evidence_items(case)
     required_types = set(req["required_evidence_types"])
     sufficiency, _missing = risk_signals.evidence_sufficiency(evidence_items, required_types)
@@ -203,7 +171,7 @@ def label_case(case: dict, req: dict, merchant: dict) -> tuple:
 
 def generate_cases(merchants: list) -> list:
     codes = list(REASON_CODES.keys())
-    bucket_choices = (["full"] * 4) + (["partial"] * 3) + (["none"] * 1) + (["full"] * 2)  # ~40/30/10/20 full-heavy
+    bucket_choices = (["full"] * 4) + (["partial"] * 3) + (["none"] * 1) + (["full"] * 2)
 
     cases = []
     for i in range(1, N_TOTAL + 1):
@@ -217,7 +185,7 @@ def generate_cases(merchants: list) -> list:
 
         original_amount = round(random.uniform(300, 15000), 2)
         if random.random() < 0.12:
-            amount = round(original_amount + random.uniform(50, 2000), 2)  # anomaly: exceeds original
+            amount = round(original_amount + random.uniform(50, 2000), 2)
         else:
             amount = original_amount
 
@@ -249,7 +217,7 @@ def generate_cases(merchants: list) -> list:
 def write_csv(path: Path, rows: list, fieldnames: list) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(f, fieldnames=fieldnames, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 
@@ -276,7 +244,7 @@ def main() -> None:
     )
 
     generated = generate_cases(merchants)
-    random.shuffle(generated)  # seeded — reproducible shuffle, not a fresh draw each run
+    random.shuffle(generated)
     dev, held_out = generated[:N_DEV], generated[N_DEV:N_DEV + N_HELD_OUT]
 
     case_fields = ["case_id", "merchant_id", "amount", "original_amount", "currency",

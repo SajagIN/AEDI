@@ -1,0 +1,3 @@
+# Web console only. The core pipeline needs just ../requirements.txt.
+-r ../requirements.txt
+flask>=3.0.0

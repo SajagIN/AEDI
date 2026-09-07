@@ -1,29 +1,3 @@
-"""
-Secret scanner — run before every commit (see scripts/pre-commit) to catch
-a credential before it ever reaches git history, not after.
-
-Why this exists as actual code and not just a README promise: Razorpay's
-own security docs state the same rule this project follows — secret keys
-must never be committed to a repo, environment variables only
-(razorpay.com/docs/security/). A README saying "we don't commit secrets"
-is a claim; a script that structurally blocks the commit is evidence. This
-also directly matches the brief's own checklist: "no leftover credentials
-or placeholder names from other projects."
-
-Patterns covered:
-- Groq API keys (this project's actual provider) — gsk_...
-- Razorpay API keys / key secrets — rzp_live_/rzp_test_ and the
-  key_id/key_secret pattern, even though this project never calls
-  Razorpay's API, in case that changes later
-- AWS access keys, generic private key headers
-- Any *_API_KEY / *_SECRET / *_TOKEN assignment whose value isn't an
-  obvious placeholder (xxx, your_key_here, changeme, <...>, empty)
-
-Usage:
-    python scripts/check_no_secrets.py               # scans staged files
-    python scripts/check_no_secrets.py --all          # scans the whole tree
-    python scripts/check_no_secrets.py file1 file2    # scans specific files
-"""
 
 import re
 import subprocess
@@ -33,25 +7,56 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).parent.parent
 
 PATTERNS = [
-    ("Groq API key", re.compile(r"gsk_[A-Za-z0-9]{20,}")),
-    ("Razorpay API key", re.compile(r"rzp_(live|test)_[A-Za-z0-9]{10,}")),
+    ("Gemini API key", re.compile(r"AIza[A-Za-z0-9_\-]{20,}")),
+    ("Groq API key (legacy)", re.compile(r"gsk_[A-Za-z0-9]{20,}")),
+    ("Payment gateway API key", re.compile(r"rzp_(live|test)_[A-Za-z0-9]{10,}")),
     ("AWS access key ID", re.compile(r"AKIA[0-9A-Z]{16}")),
     ("Private key block", re.compile(r"-----BEGIN (RSA |EC |OPENSSH |)PRIVATE KEY-----")),
 ]
 
 PLACEHOLDER_LOOKALIKES = re.compile(
-    r"^(your[_-]?key.*|xxx+|changeme|placeholder|<.*>|\.\.\.|example|none|null|test|dummy)$",
+    r"^(your[_-]?key.*|xxx+|changeme|placeholder|<.*>|\.\.\.|example|none|null|test|dummy"
+    r"|[A-Za-z][A-Za-z0-9_-]{0,15}[-_]?\.\.\.)$",
     re.IGNORECASE,
+)
+
+NON_SECRET_SHAPES = re.compile(
+    r"""^(
+          [-+]?\d[\d_]*(\.\d+)?      # 1000, 1_000, 2.5
+        | (0[xXbBoO])[0-9A-Fa-f_]+   # 0x1f
+        | [Tt]rue | [Ff]alse | None
+        | [A-Za-z_][A-Za-z0-9_.]*\(.*  # a call: int(...), os.getenv(...)
+        | _?[A-Z][A-Z0-9_]*          # another CONSTANT_NAME being aliased
+        | \{[^}]+\}                  # an f-string hole: RAZORPAY_KEY_SECRET={VAR}
+    )$""",
+    re.VERBOSE,
 )
 
 ASSIGNMENT_PATTERN = re.compile(
     r"""(?P<name>[A-Z0-9_]*(?:API_KEY|SECRET|TOKEN|PASSWORD)[A-Z0-9_]*)\s*[:=]\s*["']?(?P<value>[^\s"'#]+)""",
 )
 
-# Files we deliberately allow to contain placeholder-shaped strings.
 ALLOWED_PLACEHOLDER_FILES = {".env.example"}
 
+#   2. The line carries an explicit `pragma: allowlist-fake` comment.
+FAKE_MARKERS = re.compile(
+    r"(your[_-]|fake|example|placeholder|dummy|redacted|changeme|do[_-]?not[_-]?use|_here\b|x{4,})",
+    re.IGNORECASE,
+)
+
+ALLOWLIST_PRAGMA = "pragma: allowlist-fake"
+
 SKIP_DIRS = {".git", ".venv", "venv", "__pycache__", ".cache", "node_modules", ".pytest_cache"}
+
+
+def _line_of(text: str, index: int) -> str:
+    start = text.rfind("\n", 0, index) + 1
+    end = text.find("\n", index)
+    return text[start:end if end != -1 else len(text)]
+
+
+def _is_obviously_fake(value: str, line: str) -> bool:
+    return bool(FAKE_MARKERS.search(value)) or ALLOWLIST_PRAGMA in line
 
 
 def get_staged_files() -> list:
@@ -79,12 +84,21 @@ def scan_file(path: Path) -> list:
 
     for name, pattern in PATTERNS:
         for m in pattern.finditer(text):
+            if _is_obviously_fake(m.group(0), _line_of(text, m.start())):
+                continue
             findings.append(f"{path.relative_to(REPO_ROOT)}: possible {name} ({m.group(0)[:12]}...)")
 
     if path.name not in ALLOWED_PLACEHOLDER_FILES:
         for m in ASSIGNMENT_PATTERN.finditer(text):
             value = m.group("value").strip("\"'")
-            if value and not PLACEHOLDER_LOOKALIKES.match(value) and len(value) >= 8:
+            if (
+                value
+                and not PLACEHOLDER_LOOKALIKES.match(value)
+                and not NON_SECRET_SHAPES.match(value)
+                and not _is_obviously_fake(value, _line_of(text, m.start()))
+                and len(value) >= 8
+            ):
+
                 findings.append(
                     f"{path.relative_to(REPO_ROOT)}: {m.group('name')} assigned a non-placeholder-looking value"
                 )
