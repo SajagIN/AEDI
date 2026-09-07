@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import MerchantIntelPanel from "@/components/merchant-intel-panel";
+import Stepper, { Step } from "@/components/reactbits/stepper";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -116,6 +117,12 @@ export default function Live() {
   );
   const missing = required.filter((t) => !evidence.includes(t));
   const step = decision ? 3 : dispute ? 2 : payment ? 1 : 0;
+
+  /* The stage the reader is looking at, which is normally the stage the
+     workflow is on. Kept separate so a completed stage can be re-opened —
+     the trace is worth going back to once the verdict has landed. */
+  const [viewStep, setViewStep] = useState(0);
+  useEffect(() => { setViewStep(step); }, [step]);
 
   const run = async (name: string, fn: () => Promise<void>) => {
     setBusy(name); setErr(null);
@@ -270,27 +277,6 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
         </CardContent>
       </Card>
 
-      {/* stepper — a ruled run of stages, not pills. The completed ones are
-          struck in jade, the live one carries the cobalt lamp. */}
-      <div className="flex flex-wrap items-stretch gap-0 overflow-hidden rounded-lg border border-border">
-        {STEP_LABELS.map((label, i) => (
-          <div key={label}
-            className={`flex flex-1 items-center gap-2.5 border-r border-border px-3.5 py-2.5 last:border-r-0 transition-colors
-              ${i < step ? "bg-signal-good/[.07]" : i === step ? "bg-cobalt/[.09]" : "bg-card/40"}`}>
-            <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md font-mono text-[10px]
-              ${i < step ? "bg-signal-good/20 text-signal-good"
-                : i === step ? "animate-ember bg-cobalt text-cobalt-ink"
-                : "bg-secondary text-muted-foreground/60"}`}>
-              {i < step ? "\u2713" : i + 1}
-            </span>
-            <span className={`font-mono text-[10.5px] uppercase tracking-[.1em]
-              ${i < step ? "text-signal-good" : i === step ? "text-cobalt" : "text-muted-foreground/70"}`}>
-              {label}
-            </span>
-          </div>
-        ))}
-      </div>
-
       {/* A failing connection has to be loud. The keys being present in .env
           says nothing about whether Razorpay accepts them. */}
       {(conn || status?.reachable === false) && (
@@ -326,7 +312,8 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
       )}
 
       <div className="grid gap-5 lg:grid-cols-[1.55fr_1fr]">
-        <div className="space-y-5">
+        <Stepper steps={STEP_LABELS} currentStep={viewStep} reached={step} onStepChange={setViewStep}>
+          <Step>
           {/* 1 — payment */}
           <Card>
             <CardHeader>
@@ -402,6 +389,9 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
             </CardContent>
           </Card>
 
+          </Step>
+
+          <Step>
           {/* 2 — chargeback */}
           <Card className={payment ? "" : "pointer-events-none opacity-45"}>
             <CardHeader>
@@ -486,6 +476,9 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
             </CardContent>
           </Card>
 
+          </Step>
+
+          <Step>
           {/* 3 — decide */}
           <Card className={dispute ? "" : "pointer-events-none opacity-45"}>
             <CardHeader>
@@ -530,7 +523,24 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          </Step>
 
+          <Step>
+          {/* 4 — the loop closing */}
+          <Card className={decision ? "" : "pointer-events-none opacity-45"}>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Gavel size={16} className="text-signal-good" />
+                <CardTitle>4 · Respond to Razorpay</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {decision && (
+                <div className="space-y-3">
                   <div className={`animate-reveal rounded-lg border p-5
                     ${decision.result.decision === "contest" ? "border-signal-good/30 bg-signal-good/[.05]"
                       : decision.result.decision === "accept_liability" ? "border-signal-warn/30 bg-signal-warn/[.05]"
@@ -545,10 +555,9 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
                     <p className="font-quote text-[16px] italic leading-relaxed">{decision.result.reason}</p>
                   </div>
 
-                  {/* 4 — the loop closing */}
                   <div className="rounded-lg border border-border bg-secondary/40 p-4">
                     <div className="mb-2 flex flex-wrap items-center gap-2 text-[13px] font-medium">
-                      <Gavel size={14} /> 4 · Response to Razorpay
+                      <Gavel size={14} /> What goes on the wire
                       {decision.actionable
                         ? <Badge variant="good">would be issued</Badge>
                         : <Badge variant="warn">not issued — local chargeback</Badge>}
@@ -574,7 +583,8 @@ ${JSON.stringify(decision.razorpay_request.body ?? {}, null, 2)}`}
               )}
             </CardContent>
           </Card>
-        </div>
+          </Step>
+        </Stepper>
 
         {/* live feed */}
         <div className="space-y-5">

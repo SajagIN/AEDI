@@ -80,13 +80,17 @@ export default function Overview({ split }: { split: string }) {
             second line stays live text in the serif, because the two-tone
             split is the provenance grammar the rest of the app reads by and
             flattening it into one SVG would cost more than the effect. */}
-        <h1 className="max-w-[14ch] leading-[0.86] tracking-[-.02em]">
+        {/* The ch unit resolves against the element's own font-size, and this
+            h1 no longer sets one — so max-w-[11ch] was measuring against the
+            inherited 16px body text and handing StrokeText a 176px box to fit
+            a display word into. Widths are absolute now. */}
+        <h1 className="leading-[0.86] tracking-[-.02em]">
           <span className="sr-only">Chargebacks, answered with evidence.</span>
-          <span aria-hidden className="block max-w-[11ch]">
+          <span aria-hidden className="block w-full max-w-[min(100%,860px)]">
             <StrokeText text="Chargebacks," strokeColor="#0071E3" fillColor="hsl(var(--foreground))"
-              maxFontSize={120} minFontSize={46} strokeWidth={0.9} drawDuration={1.3} />
+              advance={0.52} minFontSize={52} maxFontSize={168} strokeWidth={0.9} drawDuration={1.3} />
           </span>
-          <span aria-hidden className="mt-1 block font-quote text-[clamp(46px,8vw,104px)] italic leading-[0.9] text-cobalt">
+          <span aria-hidden className="mt-1 block max-w-[13ch] font-quote text-[clamp(48px,8.4vw,112px)] italic leading-[0.92] text-cobalt">
             answered with evidence.
           </span>
         </h1>
