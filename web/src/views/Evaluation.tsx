@@ -2,6 +2,7 @@ import { TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Select } from "@/components/ui/select";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getMetrics, inr, nice, pct, type Health, type Metrics } from "@/lib/api";
@@ -64,12 +65,11 @@ export default function Evaluation({ health, split, setSplit }:
     <div className="space-y-10 pb-14">
       {/* ── which set of cases ──────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-2">
-        <select value={split} onChange={(e) => setSplit(e.target.value)}
-          className="h-9 rounded-lg border border-input bg-background px-3 font-mono text-[12.5px] text-foreground shadow-inset transition-colors focus-visible:border-cobalt/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cobalt/30">
+        <Select aria-label="Case split" value={split} onChange={(e) => setSplit(e.target.value)}>
           {Object.entries(health.splits).map(([k, v]) => (
             <option key={k} value={k}>{k} · {v.cases} cases</option>
           ))}
-        </select>
+        </Select>
         <span className="text-[12.5px] text-muted-foreground">{SPLIT_NOTE[split] ?? ""}</span>
         <span className="dateline ml-auto text-muted-foreground/50">computed live · code/evaluation/main.py</span>
       </div>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Select } from "@/components/ui/select";
 import { confidence, toneFor } from "@/lib/decision";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
@@ -60,21 +61,21 @@ export default function CaseExplorer({ health, split, setSplit }:
     <div className="space-y-5">
       {/* toolbar */}
       <div className="flex flex-wrap items-center gap-3">
-        <select value={split} onChange={(e) => setSplit(e.target.value)}
-          className="h-9 rounded-lg border border-input bg-background/70 px-3 font-mono text-[12.5px] text-foreground shadow-inset transition-colors focus-visible:border-cobalt/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cobalt/30">
+        <Select aria-label="Case split" value={split} onChange={(e) => setSplit(e.target.value)}>
           {Object.entries(health.splits).map(([k, v]) => (
             <option key={k} value={k}>{k} · {v.cases} cases{v.has_predictions ? "" : " · no predictions"}</option>
           ))}
-        </select>
+        </Select>
         <div className="relative">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search case, merchant, reason code…"
             className="w-[280px] pl-9" />
         </div>
-        <div className="inline-flex rounded-lg border border-border bg-secondary p-1 shadow-inset">
+        <div className="nm-inset inline-flex rounded-lg p-1">
           {FILTERS.map((f) => (
             <button key={f.id} onClick={() => setFilter(f.id)}
-              className={`rounded-md px-3 py-1.5 font-mono text-[10.5px] uppercase tracking-[.11em] transition-colors ${filter === f.id ? "bg-cobalt/15 text-cobalt" : "text-muted-foreground hover:text-foreground"}`}>
+              aria-pressed={filter === f.id}
+              className={`rounded-md px-3 py-1.5 font-mono text-[10.5px] uppercase tracking-[.11em] transition-shadow ${filter === f.id ? "nm-raised-sm text-cobalt" : "text-muted-foreground hover:text-foreground"}`}>
               {f.label}
             </button>
           ))}

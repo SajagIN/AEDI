@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Select } from "@/components/ui/select";
 import { confidence, toneFor } from "@/lib/decision";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -88,8 +89,8 @@ export default function Adversarial({ health }: { health: Health }) {
             placeholder="Write a merchant narrative — try to make it decide for you…" />
           <div className="mt-3 flex flex-wrap items-center gap-2.5">
             <Button onClick={run} disabled={busy || !text.trim()}><Play size={14} /> Run against the pipeline</Button>
-            <select onChange={(e) => e.target.value && setText(e.target.value)} value=""
-              className="h-9 max-w-[300px] rounded-lg border border-input bg-background/70 px-3 font-mono text-[12.5px] text-foreground shadow-inset transition-colors focus-visible:border-cobalt/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cobalt/30">
+            <Select aria-label="Load a sample injection" onChange={(e) => e.target.value && setText(e.target.value)} value=""
+              className="max-w-[300px]">
               <option value="">load a real fixture…</option>
               <optgroup label="attacks — should be flagged">
                 {d?.attacks.map((f) => <option key={f.id} value={f.narrative}>{f.id} · {f.category}</option>)}
@@ -97,7 +98,7 @@ export default function Adversarial({ health }: { health: Health }) {
               <optgroup label="benign controls — should NOT be flagged">
                 {d?.controls.map((f) => <option key={f.id} value={f.narrative}>{f.id} · {f.category}</option>)}
               </optgroup>
-            </select>
+            </Select>
             {busy && <span className="text-[12px] text-muted-foreground">running against the real pipeline…</span>}
             {!health.live_capable && !busy && (
               <span className="text-[12px] text-muted-foreground">needs a GROQ_API_KEY — see RUNNING.md</span>

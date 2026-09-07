@@ -109,8 +109,13 @@ export default function StrokeText({
       let bbox: DOMRect | undefined;
       try { bbox = strokeTextRef.current.getBBox(); } catch { return; }
       if (!bbox || !bbox.width) return;
-      const pad = Math.max(strokeWidth, fontSize * 0.1);
-      const next = { x: bbox.x - pad, y: bbox.y - pad, width: bbox.width + pad * 2, height: bbox.height + pad * 2 };
+      /* Vertical padding keeps ascenders and descenders off the edge. The
+         horizontal pad is the stroke's own overhang and nothing more — pad the
+         sides by a tenth of the font size and, left-aligned, the word visibly
+         starts inboard of everything beneath it. */
+      const padX = strokeWidth;
+      const padY = fontSize * 0.1;
+      const next = { x: bbox.x - padX, y: bbox.y - padY, width: bbox.width + padX * 2, height: bbox.height + padY * 2 };
       setBox((prev) =>
         prev && Math.abs(prev.x - next.x) < 0.5 && Math.abs(prev.width - next.width) < 0.5 && Math.abs(prev.y - next.y) < 0.5
           ? prev : next,
@@ -171,7 +176,7 @@ export default function StrokeText({
         className="block w-full"
         style={{ height: `${Math.round(fontSize * 1.22)}px` }}
         viewBox={viewBox}
-        preserveAspectRatio="xMidYMid meet"
+        preserveAspectRatio="xMinYMid meet"
         aria-hidden="true"
       >
         {fillMode === "wipe" && box && (

@@ -78,8 +78,8 @@ export default function App() {
               </span>
 
               {health && (
-                <span className="flex items-center gap-2 rounded-md border border-border bg-secondary/60 px-2.5 py-1.5">
-                  <span className={`h-1.5 w-1.5 rounded-full ${live ? "animate-ember bg-signal-good" : "bg-signal-info"}`} />
+                <span role="status" className="nm-raised-sm flex items-center gap-2 rounded-md px-2.5 py-1.5">
+                  <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${live ? "animate-ember bg-signal-good" : "bg-signal-info"}`} />
                   <span className="dateline text-foreground/80">{live ? health.model : "Replay"}</span>
                   <span className="dateline text-muted-foreground/60">{live ? "live" : "no key needed"}</span>
                 </span>

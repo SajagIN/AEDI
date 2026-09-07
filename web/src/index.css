@@ -1,10 +1,26 @@
-/*  AEDI console — "Aluminium"
+/*  AEDI console — "Aluminium Soft"
  *
- *  A white room with one blue light in it. The palette is almost entirely
- *  neutral, so the only saturated things on any screen are a number that means
- *  money and a warning about money. Surfaces are paper-white, lifted off the
- *  page by shadow rather than fenced in by heavy borders — the way a MacBook
- *  keyboard sits in its milled aluminium recess.
+ *  A single sheet of warm grey, #E7E9ED, with one blue light on it. Every
+ *  surface is that same grey: nothing is a lighter card on a darker page.
+ *  Depth is described only by light — a white highlight up and left, a cool
+ *  shadow down and right — so controls read as pressed into the sheet or
+ *  raised out of it. Soft UI, the way Malewicz drew it in 2019.
+ *
+ *  Neumorphism's documented failure is contrast, and it is a real one: the
+ *  style tempts you to tint text toward the surface until nothing passes AA.
+ *  Three rules stop that here, and they are not negotiable.
+ *
+ *    1. Type never softens. Body text sits at 14.3:1 against the sheet and
+ *       every signal colour clears 5.4:1, computed rather than eyeballed.
+ *    2. Every interactive control keeps a hairline border underneath its
+ *       shadow. Purists leave it off. Shadow-only affordance disappears in
+ *       forced-colours mode, at 200% zoom, and on a projector at a demo
+ *       table, and an affordance you cannot see is not one.
+ *    3. Focus is a hard 2px cobalt ring, never a soft glow. The one place
+ *       the soft language breaks on purpose is the place that needs an edge.
+ *
+ *  prefers-contrast and forced-colors flatten the whole thing to borders
+ *  further down.
  *
  *  Fonts are bundled, not fetched. The console runs on a laptop at a demo
  *  table with no guarantee of network, and a design that collapses to Times
@@ -39,23 +55,30 @@
   :root {
     /* Neutrals carry a few degrees of blue so the whites read cool and the
        greys read like anodised metal rather than newsprint. */
-    --background: 0 0% 100%;
-    --foreground: 220 9% 12%;
-    --card: 0 0% 100%;
-    --card-foreground: 220 9% 12%;
+    /* The sheet. Card and background are deliberately identical — a card
+       that is a different colour from the page is what this style replaces. */
+    --background: 220 16% 92%;
+    --card: 220 16% 92%;
+    --foreground: 220 18% 11%;
+    --card-foreground: 220 18% 11%;
     --primary: 210 100% 40%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 220 9% 25%;
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 8% 41%;
-    --accent: 210 100% 96%;
-    --accent-foreground: 210 100% 34%;
-    --destructive: 4 74% 47%;
+    --secondary: 220 16% 89%;
+    --secondary-foreground: 220 14% 22%;
+    --muted: 220 16% 89%;
+    --muted-foreground: 220 10% 34%;
+    --accent: 210 44% 87%;
+    --accent-foreground: 210 100% 26%;
+    --destructive: 4 74% 41%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 13% 90%;
-    --input: 220 13% 88%;
+    --border: 220 13% 84%;
+    --input: 220 13% 84%;
     --ring: 210 100% 40%;
+
+    /* The two lights. Everything raised or inset is built from these and
+       nothing else, so the surface can be relit by editing two lines. */
+    --nm-light: 0 0% 100%;
+    --nm-dark: 220 20% 68%;
 
     /* Apple rounds generously. A 10px radius on a small control and 14 on a
        panel is the difference between "soft" and "toy". */
@@ -79,8 +102,8 @@
        the same job as the grid vignette and washed it out, so it is gone —
        structure now comes from the rules, atmosphere from these. */
     background-image:
-      radial-gradient(60rem 40rem at 8% -10%, rgba(0, 113, 227, 0.06), transparent 60%),
-      radial-gradient(52rem 36rem at 100% 0%, rgba(120, 140, 170, 0.075), transparent 58%);
+      radial-gradient(70rem 46rem at 12% -12%, hsl(0 0% 100% / .55), transparent 62%),
+      radial-gradient(58rem 40rem at 100% 4%, hsl(210 100% 40% / .05), transparent 58%);
     background-attachment: fixed;
     font-feature-settings: "ss01" 1, "ss02" 1;
     letter-spacing: -0.006em;
@@ -107,16 +130,24 @@
   h1, h2, h3, h4 { @apply font-display; font-weight: 600; letter-spacing: -0.028em; }
   h1 { letter-spacing: -0.038em; }
 
-  ::selection { background: rgba(0, 113, 227, 0.16); color: hsl(220 9% 12%); }
+  ::selection { background: hsl(210 100% 40% / .2); color: hsl(220 18% 11%); }
+
+  /* Focus is the one hard edge in a soft interface. Two pixels, full cobalt,
+     offset clear of the shadow so it reads on a raised control and a pressed
+     one alike. */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
 
   ::-webkit-scrollbar { width: 11px; height: 11px; }
   ::-webkit-scrollbar-thumb {
-    background: rgba(60, 70, 85, 0.22);
+    background: hsl(220 20% 55% / .35);
     border: 3px solid transparent;
     background-clip: content-box;
     border-radius: 99px;
   }
-  ::-webkit-scrollbar-thumb:hover { background: rgba(60, 70, 85, 0.4); background-clip: content-box; }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(220 20% 45% / .5); background-clip: content-box; }
   ::-webkit-scrollbar-track { background: transparent; }
 
   /* Number columns must line up; that is half of why anyone trusts a figure. */
@@ -132,6 +163,55 @@
 }
 
 @layer utilities {
+  /* ── soft UI ──────────────────────────────────────────────────────────
+     Raised: lit up-left, shadowed down-right, sitting on the sheet.
+     Inset: the same two lights swapped, so the surface reads as pressed in.
+     Both carry a hairline ring so the shape survives with shadows disabled. */
+  .nm-raised {
+    background: hsl(var(--card));
+    box-shadow:
+      -6px -6px 14px hsl(var(--nm-light) / .85),
+      6px 6px 16px hsl(var(--nm-dark) / .45),
+      0 0 0 1px hsl(var(--border) / .8);
+  }
+  .nm-raised-sm {
+    background: hsl(var(--card));
+    box-shadow:
+      -3px -3px 7px hsl(var(--nm-light) / .8),
+      3px 3px 8px hsl(var(--nm-dark) / .4),
+      0 0 0 1px hsl(var(--border) / .8);
+  }
+  .nm-inset {
+    background: hsl(var(--card));
+    box-shadow:
+      inset 3px 3px 7px hsl(var(--nm-dark) / .45),
+      inset -3px -3px 7px hsl(var(--nm-light) / .85),
+      0 0 0 1px hsl(var(--border) / .55);
+  }
+  /* Held down: 1px of travel plus the light flipping over, which is what
+     makes a soft button feel mechanical rather than animated. */
+  .nm-press:active:not(:disabled) {
+    box-shadow:
+      inset 3px 3px 7px hsl(var(--nm-dark) / .5),
+      inset -3px -3px 7px hsl(var(--nm-light) / .8),
+      0 0 0 1px hsl(var(--border) / .7);
+    transform: translateY(1px);
+  }
+
+  /* Windows High Contrast strips box-shadow outright, so every soft surface
+     would dissolve into one undifferentiated sheet. Give the shapes back as
+     system-coloured borders. */
+  @media (forced-colors: active) {
+    .nm-raised, .nm-raised-sm, .nm-inset { box-shadow: none; border: 1px solid CanvasText; }
+  }
+  /* Asked for more contrast: drop the illusion, keep the structure. */
+  @media (prefers-contrast: more) {
+    .nm-raised, .nm-raised-sm, .nm-inset {
+      box-shadow: none;
+      border: 1px solid hsl(var(--foreground) / .5);
+    }
+  }
+
   /* Staggered page load. Set --i on each child; the delay follows. */
   .reveal { animation: reveal .55s cubic-bezier(.16,1,.3,1) both; animation-delay: calc(var(--i, 0) * 55ms); }
   .reveal-x { animation: reveal-x .5s cubic-bezier(.16,1,.3,1) both; animation-delay: calc(var(--i, 0) * 45ms); }
@@ -158,16 +238,18 @@
 
   /* Panels rise on hover — the only hover affordance used, so it always
      means "this is interactive". */
-  .lift { transition: transform .35s cubic-bezier(.16,1,.3,1), box-shadow .35s, border-color .35s; }
+  .lift { transition: transform .35s cubic-bezier(.16,1,.3,1), box-shadow .35s; }
   .lift:hover {
     transform: translateY(-2px);
-    border-color: rgba(0,113,227,.3);
-    box-shadow: 0 2px 4px rgba(16,24,40,.05), 0 18px 40px -20px rgba(16,24,40,.22);
+    box-shadow:
+      -8px -8px 18px hsl(var(--nm-light) / .9),
+      8px 10px 22px hsl(var(--nm-dark) / .5),
+      0 0 0 1px hsl(210 100% 40% / .28);
   }
 
   /* Frosted bar, for the header that sits over scrolling content. */
   .frost {
-    background: rgba(255,255,255,.72);
+    background: hsl(var(--background) / .78);
     backdrop-filter: saturate(180%) blur(20px);
     -webkit-backdrop-filter: saturate(180%) blur(20px);
   }

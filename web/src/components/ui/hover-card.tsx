@@ -11,7 +11,7 @@ const HoverCardContent = React.forwardRef<
 >(({ className, align = "start", sideOffset = 8, ...props }, ref) => (
   <HoverCardPrimitive.Content ref={ref} align={align} sideOffset={sideOffset}
     className={cn(
-      "z-50 w-72 rounded-lg border border-border bg-card p-4 text-[12.5px] leading-relaxed text-muted-foreground shadow-panel",
+      "z-50 w-72 rounded-lg nm-raised p-4 text-[12.5px] leading-relaxed text-muted-foreground shadow-[0_16px_40px_-12px_hsl(220_30%_35%/.45)]",
       "animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
       className)}
     {...props} />

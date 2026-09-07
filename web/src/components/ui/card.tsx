@@ -1,14 +1,15 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-/* A panel is a milled recess: no visible frame, just a hairline tint, a
-   contact shadow and a wide soft one. On white the border has to do almost
-   nothing, or it becomes the loudest thing on the screen. */
+/* A panel is the sheet itself, pushed up. Same colour as the page — the
+   whole point of soft UI is that a card is not a lighter rectangle laid on
+   top, it is the surface deforming. The hairline underneath the shadow is
+   what keeps it a rectangle when shadows are unavailable. */
 const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div ref={ref}
       className={cn(
-        "relative rounded-xl border border-border/60 bg-card text-card-foreground shadow-panel",
+        "nm-raised relative rounded-2xl text-card-foreground",
         className)}
       {...props} />
   )

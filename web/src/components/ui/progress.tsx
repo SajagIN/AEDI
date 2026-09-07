@@ -12,7 +12,7 @@ export interface ProgressProps
 const Progress = React.forwardRef<React.ElementRef<typeof ProgressPrimitive.Root>, ProgressProps>(
   ({ className, barClassName, value, ...props }, ref) => (
     <ProgressPrimitive.Root ref={ref}
-      className={cn("relative h-1.5 w-full overflow-hidden rounded-md bg-secondary shadow-inset", className)} {...props}>
+      className={cn("nm-inset relative h-2 w-full overflow-hidden rounded-full", className)} {...props}>
       <ProgressPrimitive.Indicator
         className={cn(
           "h-full w-full flex-1 bg-gradient-to-r from-cobalt-deep to-cobalt transition-transform duration-700 ease-[cubic-bezier(.16,1,.3,1)]",

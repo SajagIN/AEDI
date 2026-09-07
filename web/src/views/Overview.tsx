@@ -80,25 +80,22 @@ export default function Overview({ split }: { split: string }) {
             second line stays live text in the serif, because the two-tone
             split is the provenance grammar the rest of the app reads by and
             flattening it into one SVG would cost more than the effect. */}
-        {/* The ch unit resolves against the element's own font-size, and this
-            h1 no longer sets one — so max-w-[11ch] was measuring against the
-            inherited 16px body text and handing StrokeText a 176px box to fit
-            a display word into. Widths are absolute now. */}
-        <h1 className="leading-[0.86] tracking-[-.02em]">
+        {/* Both lines start at the same x. The drawn line used to sit inset
+            from the serif one because the SVG centred its glyphs inside a box
+            that is wider than they are — xMid, plus a left pad scaled off the
+            font size. It left-aligns now, and pads horizontally by the stroke
+            width alone. Sizes are picked so the two lines land within a few
+            percent of each other rather than one towering over the other. */}
+        <h1 className="max-w-[820px] leading-[0.86] tracking-[-.02em]">
           <span className="sr-only">Chargebacks, answered with evidence.</span>
-          <span aria-hidden className="block w-full max-w-[min(100%,860px)]">
+          <span aria-hidden className="block w-full">
             <StrokeText text="Chargebacks," strokeColor="#0071E3" fillColor="hsl(var(--foreground))"
-              minFontSize={52} maxFontSize={168} strokeWidth={0.9} drawDuration={1.3} />
+              minFontSize={44} maxFontSize={130} strokeWidth={0.9} drawDuration={1.3} />
           </span>
-          <span aria-hidden className="mt-1 block max-w-[13ch] font-quote text-[clamp(48px,8.4vw,112px)] italic leading-[0.92] text-cobalt">
+          <span aria-hidden className="mt-2 block font-quote text-[clamp(42px,9.1vw,118px)] italic leading-[0.9] text-cobalt">
             answered with evidence.
           </span>
         </h1>
-        {m?.available && (
-          <div className="dateline mt-10 text-muted-foreground/50">
-            {m.split} &middot; n={agent?.n}
-          </div>
-        )}
       </div>
 
       {/* ── is it accurate ────────────────────────────────────────────────

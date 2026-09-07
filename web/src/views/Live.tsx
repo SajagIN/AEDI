@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Select } from "@/components/ui/select";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import MerchantIntelPanel from "@/components/merchant-intel-panel";
 import Stepper, { Step } from "@/components/reactbits/stepper";
@@ -244,32 +245,6 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
   /* ── connected ──────────────────────────────────────────────────────── */
   return (
     <div className="space-y-5">
-      {/* Honesty banner — still the first thing on the tab, but a line instead
-          of a paragraph. The full argument is one hover away; the part that
-          must never be missed is which badge means which, so that stays. */}
-      <Card className="border-signal-info/25 bg-gradient-to-br from-signal-info/[.05] to-transparent animate-reveal">
-        <CardContent className="flex flex-wrap items-center gap-x-2 gap-y-2 p-4 text-[12.5px]">
-          <AlertTriangle size={15} className="shrink-0 text-signal-info" />
-          <span className="text-foreground">Real: the order, the payment, the pipeline.</span>
-          <span className="text-muted-foreground">Stood in for: the chargeback&rsquo;s arrival.</span>
-          <HoverCard openDelay={100}>
-            <HoverCardTrigger asChild>
-              <button className="dateline border-b border-dashed border-border pb-0.5 text-muted-foreground/70 transition-colors hover:text-cobalt">
-                why
-              </button>
-            </HoverCardTrigger>
-            <HoverCardContent className="w-80">
-              Razorpay has no dispute-create API — disputes are raised by the issuing bank, not the
-              merchant. So chargebacks composed here are marked{" "}
-              <Badge variant="warn" className="mx-0.5 align-middle">raised in console</Badge> and are
-              never submitted. One that arrived by webhook is marked{" "}
-              <Badge variant="good" className="mx-0.5 align-middle">live from Razorpay</Badge> and{" "}
-              <i>is</i> actioned for real.
-            </HoverCardContent>
-          </HoverCard>
-        </CardContent>
-      </Card>
-
       {/* connection */}
       <Card>
         <CardContent className="flex flex-wrap items-center gap-x-6 gap-y-3 p-5">
@@ -290,9 +265,6 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
               </Badge>
             )}
           </div>
-          <Button size="sm" variant="secondary" className="ml-auto" onClick={probe} disabled={probing}>
-            {probing ? <Loader2 size={13} className="animate-spin" /> : <Radio size={13} />} Test connection
-          </Button>
         </CardContent>
       </Card>
 
@@ -372,14 +344,13 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
                 </label>
                 <label className="text-[13px]">
                   <div className="mb-1.5 font-medium text-muted-foreground">Merchant</div>
-                  <select value={merchant} onChange={(e) => setMerchant(e.target.value)}
-                    className="h-9 rounded-lg border border-input bg-background/70 px-3 font-mono text-[12.5px] text-foreground shadow-inset transition-colors focus-visible:border-cobalt/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cobalt/30">
+                  <Select value={merchant} onChange={(e) => setMerchant(e.target.value)}>
                     {ref?.merchants.map((m) => (
                       <option key={m.merchant_id} value={m.merchant_id}>
                         {m.merchant_id}{m.repeat_pattern ? " · repeat-dispute pattern" : ""}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
                 <Button onClick={pay} disabled={busy === "pay"}>
                   {busy === "pay" ? <Loader2 size={14} className="animate-spin" /> : <CreditCard size={14} />}
@@ -445,14 +416,14 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
             <CardContent className="space-y-4">
               <label className="block text-[13px]">
                 <div className="mb-1.5 font-medium text-muted-foreground">Network reason code</div>
-                <select value={reason} onChange={(e) => setReason(e.target.value)}
-                  className="h-9 w-full max-w-xl rounded-lg border border-input bg-background/70 px-3 font-mono text-[12.5px] text-foreground shadow-inset transition-colors focus-visible:border-cobalt/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cobalt/30">
+                <Select value={reason} onChange={(e) => setReason(e.target.value)}
+                  className="w-full max-w-xl">
                   {ref?.reason_codes.map((r) => (
                     <option key={r.reason_code} value={r.reason_code}>
                       {r.reason_code} · {r.network} — {r.description}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
 
               <div>
@@ -624,7 +595,7 @@ ${JSON.stringify(decision.razorpay_request.body ?? {}, null, 2)}`}
                 <CardTitle>Live activity</CardTitle>
               </div>
             </CardHeader>
-            <CardContent className="max-h-[520px] overflow-y-auto">
+            <CardContent className="max-h-[520px] overflow-y-auto" role="log" aria-live="polite" aria-relevant="additions">
               {events.length === 0 && (
                 <p className="py-6 text-center text-[12.5px] text-muted-foreground">
                   Nothing yet. Take a test payment to start the flow.
