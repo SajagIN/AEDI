@@ -98,8 +98,6 @@ export default {
         // A hairline rule drawing itself in.
         rule: { from: { transform: "scaleX(0)" }, to: { transform: "scaleX(1)" } },
         // Radix reports the measured height on the content element.
-        "accordion-down": { from: { height: "0" }, to: { height: "var(--radix-accordion-content-height)" } },
-        "accordion-up": { from: { height: "var(--radix-accordion-content-height)" }, to: { height: "0" } },
       },
       animation: {
         reveal: "reveal .55s cubic-bezier(.16,1,.3,1) both",
@@ -107,8 +105,6 @@ export default {
         sweep: "sweep 1.4s cubic-bezier(.4,0,.2,1) .2s both",
         ember: "ember 1.6s ease-in-out infinite",
         rule: "rule .7s cubic-bezier(.16,1,.3,1) both",
-        "accordion-down": "accordion-down .28s cubic-bezier(.16,1,.3,1)",
-        "accordion-up": "accordion-up .22s cubic-bezier(.16,1,.3,1)",
       },
     },
   },
