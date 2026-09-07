@@ -9,7 +9,7 @@
 
   ![Posture](https://img.shields.io/badge/POSTURE-DEFENSE--ONLY-2f6fed?style=for-the-badge)
 
-  ![Tests](https://img.shields.io/badge/TESTS-208_PASSING-2ea44f?style=for-the-badge)
+  ![Tests](https://img.shields.io/badge/TESTS-256_PASSING-2ea44f?style=for-the-badge)
   ![Adversarial defense](https://img.shields.io/badge/ADVERSARIAL_DEFENSE-100%25-2ea44f?style=for-the-badge)
   ![False positives](https://img.shields.io/badge/FALSE_POSITIVES-ZERO-2ea44f?style=for-the-badge)
 
@@ -90,7 +90,7 @@ script and the hard questions with answers —
 ```bash
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 
-# 1. Prove it works — 208 tests, no network, ~25s
+# 1. Prove it works — 256 tests, no network, ~25s
 pip install -r requirements.txt
 python -m pytest tests/ -v
 

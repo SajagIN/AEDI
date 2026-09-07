@@ -149,7 +149,7 @@ different ID, structurally, not by convention.
   the lock file's concurrency guarantee. Seven further files — Razorpay
   live and endpoint behaviour, the output-token and reasoning budgets,
   the live-call deadline and partial-run reporting — bring the offline
-  suite to 208.
+  suite to 256.
 - `tests/adversarial_regression/` — the one test suite that does call the
   real model, by design, since it's testing the model's actual behavior
   under adversarial input, not code logic. Defense-only, deliberately

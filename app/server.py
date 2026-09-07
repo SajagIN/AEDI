@@ -50,6 +50,7 @@ import risk_signals                       # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import razorpay_live                      # noqa: E402
+import merchant_intel                     # noqa: E402
 
 
 def _load(alias: str, path: Path):
@@ -946,6 +947,35 @@ def rzp_webhook():
 
     _rzp_events.add("webhook", f"Razorpay webhook: {name}", origin="razorpay")
     return jsonify({"ok": True})
+
+
+# ── merchant adverse-media intel (SerpAPI) ────────────────────────────────
+#
+# Deliberately its own endpoint rather than a field on /api/analyze. The
+# scoring path must stay reproducible offline, so this is something an
+# operator asks for about a named business — never something the pipeline
+# reaches for on its own. See app/merchant_intel.py for the full argument.
+
+@app.get("/api/merchant-intel/status")
+def merchant_intel_status():
+    return jsonify({
+        "configured": merchant_intel.has_api_key(),
+        "provider": "SerpAPI",
+        "escalate_only": True,
+    })
+
+
+@app.post("/api/merchant-intel")
+def merchant_intel_lookup():
+    body = request.get_json(force=True) or {}
+    name = (body.get("merchant_name") or "").strip()
+    if not name:
+        return jsonify({"error": "merchant_name is required"}), 400
+    try:
+        return jsonify(merchant_intel.look_up(name))
+    except merchant_intel.MerchantIntelUnavailable as e:
+        # 503, not 500: the console is fine, the enrichment is not available.
+        return jsonify({"error": str(e), "configured": merchant_intel.has_api_key()}), 503
 
 
 @app.get("/")

@@ -248,7 +248,7 @@ metrics too. Saying it first costs you nothing and buys you the rest.
 ## 6. Pre-demo checklist
 
 ```bash
-python -m pytest tests/ -q                 # 208 passed
+python -m pytest tests/ -q                 # 256 passed
 python app/server.py                       # console up on :8000
 ```
 
