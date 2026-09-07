@@ -101,7 +101,7 @@ export default function Adversarial({ health }: { health: Health }) {
             </Select>
             {busy && <span className="text-[12px] text-muted-foreground">running against the real pipeline…</span>}
             {!health.live_capable && !busy && (
-              <span className="text-[12px] text-muted-foreground">needs a NVIDIA_API_KEY — see RUNNING.md</span>
+              <span className="text-[12px] text-muted-foreground">needs a GEMINI_API_KEY — see RUNNING.md</span>
             )}
           </div>
 

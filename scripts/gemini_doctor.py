@@ -13,12 +13,12 @@ first thing that breaks:
   2. does the endpoint accept it
   3. does the configured model exist and answer
   4. does it accept a tools array at all
-  5. does it accept the FORCED tool_choice the pipeline relies on, with
+  5. does it accept the FORCED function call the pipeline relies on, with
      thinking switched off the way the pipeline switches it off
 
 Step 5 is the one that usually bites, and it fails two different ways. A model
-without real function-calling support answers a named tool_choice with prose. A
-reasoning model that ignores enable_thinking spends the whole allowance
+without real function-calling support answers a forced call with prose. A
+reasoning model that ignores thinking_budget=0 spends the whole allowance
 deliberating and returns an empty message — same symptom, opposite fix, and the
 doctor tells them apart by looking for reasoning_content.
 
@@ -28,8 +28,8 @@ it, but the pipeline does not ask nicely — the classification round forces
 tool_choice to a named function, and a model without real function-calling
 support answers that with prose, an empty completion, or a 400.
 
-    python scripts/nim_doctor.py
-    python scripts/nim_doctor.py --model qwen/qwen3-next-80b-a3b-instruct
+    python scripts/gemini_doctor.py
+    python scripts/gemini_doctor.py --model gemini-3.8-flash
 """
 import argparse
 import json
@@ -46,8 +46,7 @@ except ImportError:
     pass
 
 OK, BAD, WARN = "  ok  ", " FAIL ", " warn "
-DEFAULT_MODEL = os.environ.get("AEDI_MODEL", "").strip() or "meta/llama-3.3-70b-instruct"
-BASE_URL = os.environ.get("AEDI_BASE_URL", "").strip() or "https://integrate.api.nvidia.com/v1"
+DEFAULT_MODEL = os.environ.get("AEDI_MODEL", "").strip() or "gemini-3.8-flash"
 
 PROBE_TOOL = {
     "type": "function",
@@ -74,34 +73,38 @@ def main():
     ap.add_argument("--model", default=DEFAULT_MODEL)
     args = ap.parse_args()
     model = args.model
-    print(f"\nNIM doctor — {BASE_URL}\n            model: {model}\n")
+    print(f"\nGemini doctor — model: {model}\n")
 
     # ── 1. the key ────────────────────────────────────────────────────────
     keys = {k: v for k, v in os.environ.items()
-            if re.fullmatch(r"NVIDIA_API_KEY(_\d+)?", k) and v}
+            if re.fullmatch(r"GEMINI_API_KEY(_\d+)?", k) and v}
     if not keys:
-        print(f"{BAD} no NVIDIA_API_KEY found in .env or the environment.")
-        print("       Get one at https://build.nvidia.com and put it in .env as")
-        print("       NVIDIA_API_KEY=nvapi-...")
+        print(f"{BAD} no GEMINI_API_KEY found in .env or the environment.")
+        print("       Get one at https://aistudio.google.com/apikey and put it in .env as")
+        print("       GEMINI_API_KEY=AIza...")
         return 1
     print(f"{OK} {len(keys)} key(s): {', '.join(sorted(keys))}")
     for name, value in sorted(keys.items()):
-        if not value.startswith("nvapi-"):
-            print(f"{WARN} {name} does not start with 'nvapi-'. NIM keys do. "
+        if not value.startswith("AIza"):
+            print(f"{WARN} {name} does not start with 'AIza'. Gemini keys do. "
                   f"If this is a key for another provider it will fail at step 2.")
 
+    # Probing through the pipeline's own adapter rather than the raw SDK, so
+    # a pass here means the path the pipeline actually takes works — including
+    # the message and tool translation, which is where an adapter bug would
+    # hide.
     try:
-        from openai import OpenAI
-    except ImportError:
-        print(f"{BAD} the openai package is not installed.  pip install -r requirements.txt")
+        from gemini_client import GeminiClient
+    except ImportError as e:
+        print(f"{BAD} could not import the Gemini adapter: {e}")
+        print("       pip install -r requirements.txt")
         return 1
 
-    client = OpenAI(api_key=sorted(keys.items())[0][1], base_url=BASE_URL)
+    client = GeminiClient(api_key=sorted(keys.items())[0][1])
 
     # ── 2. auth ───────────────────────────────────────────────────────────
     try:
-        listed = client.models.list()
-        names = [m.id for m in listed.data]
+        names = client.list_models()
         print(f"{OK} endpoint accepted the key — {len(names)} model(s) visible")
     except Exception as e:
         print(f"{BAD} the endpoint rejected the key: {short(e)}")
@@ -149,7 +152,7 @@ def main():
         r = client.chat.completions.create(
             model=model, max_tokens=256, temperature=0, tools=[PROBE_TOOL],
             tool_choice={"type": "function", "function": {"name": "classify_chargeback"}},
-            extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+            extra_body={"thinking_budget": 0},
             messages=[{"role": "user",
                        "content": "Evidence is complete and nothing is anomalous. Classify it."}])
         msg = r.choices[0].message

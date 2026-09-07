@@ -6,7 +6,7 @@ The failure this pins, seen on a live account:
     400 - {'code': 'tool_use_failed', 'failed_generation': ''}
 
 repeated three times, then a fallback row. It reads like a malformed prompt and
-is nothing of the sort. The default model is a reasoning model, and on NVIDIA NIM the
+is nothing of the sort. The default model is a reasoning model, and on Gemini the
 output-token budget is spent on thinking AND on speaking — reasoning_format
 "hidden" strips the thinking from the response but the tokens are still
 generated against the same ceiling. On an account whose OTPM ceiling is 1000,
@@ -27,7 +27,7 @@ import pytest
 REPO_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(REPO_ROOT / "code"))
 
-# The exact shape NVIDIA NIM returned on the reported run.
+# The exact shape Gemini returned on the reported run.
 STARVED = (
     "Error code: 400 - {'error': {'message': \"Failed to call a function. Please adjust "
     "your prompt. See 'failed_generation' for more details.\", 'type': "
@@ -102,7 +102,7 @@ class _Boom:
             raise Exception(self.err)
         return ({"content": None, "tool_calls": [{
             "id": "c1", "function": {"name": "classify_chargeback",
-                                     "arguments": '{"decision": "contest"}'}}]}, "NVIDIA_API_KEY")
+                                     "arguments": '{"decision": "contest"}'}}]}, "GEMINI_API_KEY")
 
 
 def _turn(main, monkeypatch, boom, max_rounds=1):
@@ -119,7 +119,7 @@ def test_a_starved_call_retries_without_thinking(main, monkeypatch):
     _turn(main, monkeypatch, boom)
 
     assert len(boom.calls) == 2
-    assert boom.calls[1]["extra_body"]["chat_template_kwargs"]["enable_thinking"] is False, (
+    assert boom.calls[1]["extra_body"]["thinking_budget"] == 0, (
         "the retry must free the budget for the answer, not repeat the request")
 
 
@@ -172,10 +172,10 @@ def test_analyze_case_does_not_sleep_on_a_proven_dead_end(main, monkeypatch):
     assert not slept, "an unwinnable configuration must not be retried"
 
 
-# ── the request NVIDIA NIM actually receives ────────────────────────────────────
+# ── the request Gemini actually receives ────────────────────────────────────
 
 def test_the_budget_is_sent_as_plain_max_tokens(main, monkeypatch):
-    """NIM serves the OpenAI Chat Completions dialect, where max_tokens is the
+    """Gemini serves the OpenAI Chat Completions dialect, where max_tokens is the
     output ceiling. max_completion_tokens was the previous provider's spelling
     for a reasoning model billing thought and answer against one number."""
     boom = _Boom(STARVED, fails=0)
@@ -185,14 +185,14 @@ def test_the_budget_is_sent_as_plain_max_tokens(main, monkeypatch):
 
 
 def test_no_reasoning_parameters_are_sent_on_the_happy_path(main, monkeypatch):
-    """reasoning_format and reasoning_effort were provider-specific and are
-    gone. Sending an unknown key to NIM is at best ignored and at worst a 400,
-    so the ordinary request carries neither."""
+    """reasoning_format and reasoning_effort belonged to a different provider.
+    The only thing extra_body carries now is Gemini's thinking budget, and on
+    the ordinary path that budget is zero."""
     boom = _Boom(STARVED, fails=0)
     _turn(main, monkeypatch, boom)
     assert "reasoning_effort" not in boom.calls[0]
     # extra_body carries exactly one thing: the thinking switch.
-    assert boom.calls[0]["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}
+    assert boom.calls[0]["extra_body"] == {"thinking_budget": 0}
 
 
 # ── an unanswered case must not look like a decision ──────────────────────
@@ -219,8 +219,8 @@ def test_starvation_is_handled_in_the_first_round_too(main, monkeypatch):
     main._run_agent_turn(object(), object(), [{"role": "user", "content": "x"}], {},
                          max_rounds=2)
 
-    assert boom.calls[0]["extra_body"]["chat_template_kwargs"]["enable_thinking"] is False
-    assert boom.calls[1]["extra_body"]["chat_template_kwargs"]["enable_thinking"] is False, (
+    assert boom.calls[0]["extra_body"]["thinking_budget"] == 0
+    assert boom.calls[1]["extra_body"]["thinking_budget"] == 0, (
         "round one must be able to ask for the answer without thinking, "
         "rather than waiting for round two")
 

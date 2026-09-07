@@ -11,7 +11,7 @@ guards against leftover credentials or placeholder names carried in from
 other projects.
 
 Patterns covered:
-- NVIDIA NIM API keys (this project's actual provider) — nvapi-...
+- Gemini API keys (this project's actual provider) — AIza...
 - Payment-gateway API keys / key secrets — the rzp_live_/rzp_test_ and
   key_id/key_secret shapes, even though this project never calls a
   payment API, in case that changes later
@@ -33,7 +33,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).parent.parent
 
 PATTERNS = [
-    ("NVIDIA NIM API key", re.compile(r"nvapi-[A-Za-z0-9_\-]{20,}")),
+    ("Gemini API key", re.compile(r"AIza[A-Za-z0-9_\-]{20,}")),
     # The previous provider's prefix. Kept deliberately: a scanner that detects
     # more kinds of secret is strictly safer, and an old key can still be
     # sitting in someone's shell history or a stale .env.

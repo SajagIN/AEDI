@@ -70,7 +70,7 @@ had shipped instead.
   before retrying, so the retry is actually a different request (`code/
   main.py::_run_agent_turn`, `FORCE_CLASSIFY_NUDGE`). Disclosed here
   rather than smoothed over.
-- **`_recover_failed_generation`**: NVIDIA NIM's forced-`tool_choice` path
+- **`_recover_failed_generation`**: Gemini's forced-`tool_choice` path
   sometimes rejects a call with a 400 even when the model produced a
   complete, correct JSON answer as plain text instead of a structured tool
   call. Recovering that instead of discarding a real result and burning a
@@ -103,7 +103,7 @@ methodology.
 
 These are recorded because they changed the code, not as a war story:
 
-- **NVIDIA NIM's daily token cap is enforced per *account*, not per key.**
+- **Gemini's daily token cap is enforced per *account*, not per key.**
   Additional keys generated from the same account share one 200k-token/day
   pool; the API's own rate-limit errors expose the identical
   `organization` ID for all of them. Only keys from genuinely separate

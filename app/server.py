@@ -12,11 +12,11 @@ reimplemented here:
 
 Two operating modes, detected at startup:
 
-- REPLAY (no NVIDIA_API_KEY): every deterministic signal, the full evaluation
+- REPLAY (no GEMINI_API_KEY): every deterministic signal, the full evaluation
   harness, and the committed predictions are available. "Run agent" replays
   the committed decision for that case. This mode always works — no
   network, no credentials, nothing to configure.
-- LIVE (NVIDIA_API_KEY present): "Run agent" additionally calls the real
+- LIVE (GEMINI_API_KEY present): "Run agent" additionally calls the real
   bounded agent loop for a single case, through the same disk cache the
   batch pipeline uses.
 
@@ -80,7 +80,7 @@ _cache = pipeline.ResponseCache()
 
 def has_api_key() -> bool:
     import re
-    return any(re.fullmatch(r"NVIDIA_API_KEY(_\d+)?", k) and v for k, v in os.environ.items())
+    return any(re.fullmatch(r"GEMINI_API_KEY(_\d+)?", k) and v for k, v in os.environ.items())
 
 
 def read_csv(path: Path) -> list:
@@ -251,7 +251,7 @@ def analyze():
 
     if mode == "live":
         if not has_api_key():
-            return jsonify({"error": "LIVE mode needs an NVIDIA_API_KEY in .env"}), 400
+            return jsonify({"error": "LIVE mode needs an GEMINI_API_KEY in .env"}), 400
         try:
             if _pool is None:
                 _pool = pipeline.KeyPool()
@@ -407,7 +407,7 @@ def injection_test():
     if not narrative:
         return jsonify({"error": "empty narrative"}), 400
     if not has_api_key():
-        return jsonify({"error": "needs LIVE mode — set NVIDIA_API_KEY in .env and restart. "
+        return jsonify({"error": "needs LIVE mode — set GEMINI_API_KEY in .env and restart. "
                                  "Novel text has to be judged by the model; replaying a "
                                  "canned verdict here would be theatre."}), 400
     row = dict(NEUTRAL_BASE_CASE, case_id="playground", merchant_narrative=narrative)
@@ -499,11 +499,11 @@ def run_agent_bounded(row, ctx, deadline=None):
 
     if worker.is_alive():
         return None, TimeoutError(
-            f"The model did not answer within {deadline:.0f}s. On the free NVIDIA NIM tier the "
+            f"The model did not answer within {deadline:.0f}s. On the free Gemini tier the "
             f"usual cause is the per-minute request limit, which queues a call rather than "
             f"refusing it, so an interactive run stalls instead of erroring. "
             f"Options: wait a minute and retry (the attempt still running will land in the "
-            f"cache, making the retry fast), run scripts/nim_doctor.py to check the model "
+            f"cache, making the retry fast), run scripts/gemini_doctor.py to check the model "
             f"answers a forced tool call at all, or set AEDI_MODEL to a smaller model.")
     if "error" in box:
         return None, box["error"]
@@ -778,7 +778,7 @@ def rzp_decide():
 
     if not has_api_key():
         return jsonify({
-            "error": "Deciding a live chargeback needs an NVIDIA_API_KEY in .env. The narrative is "
+            "error": "Deciding a live chargeback needs an GEMINI_API_KEY in .env. The narrative is "
                      "novel text, so there is no committed prediction to replay and inventing "
                      "one would be theatre. The deterministic signals below are still real.",
             "signals": sig, "deterministic_flags": flags, "trace": trace,
@@ -992,7 +992,7 @@ def logo():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8000"))
-    mode = "LIVE (agent will call the model)" if has_api_key() else "REPLAY (no NVIDIA_API_KEY — no network calls)"
+    mode = "LIVE (agent will call the model)" if has_api_key() else "REPLAY (no GEMINI_API_KEY — no network calls)"
     print(f"AEDI console starting in {mode}")
     print(f"  open http://127.0.0.1:{port}")
     app.run(host="0.0.0.0", port=port, debug=False)

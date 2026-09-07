@@ -26,7 +26,7 @@ already seen.
 Usage:
     python code/main.py [--dataset-dir dataset] [--output dataset/output.csv]
 
-Requires: at least NVIDIA_API_KEY in .env or environment (NVIDIA_API_KEY_2, _3, ... optional)
+Requires: at least GEMINI_API_KEY in .env or environment (GEMINI_API_KEY_2, _3, ... optional)
 """
 
 import argparse
@@ -39,7 +39,7 @@ import time
 from pathlib import Path
 
 from dotenv import load_dotenv
-from openai import OpenAI
+from gemini_client import GeminiClient
 
 from llm_cache import ResponseCache
 import risk_signals
@@ -48,13 +48,8 @@ load_dotenv()
 
 REPO_ROOT = Path(__file__).parent.parent
 # Overridable so a low free-tier output-per-minute ceiling can be worked
-# around without editing code: AEDI_MODEL=llama-3.3-70b-versatile, etc.
-MODEL = os.environ.get("AEDI_MODEL", "").strip() or "meta/llama-3.3-70b-instruct"
-
-# NVIDIA NIM speaks the OpenAI Chat Completions dialect, so the official openai
-# SDK drives it unchanged — only the base URL and the key move. Overridable for
-# a self-hosted NIM container, which serves the same API on localhost:8000/v1.
-NIM_BASE_URL = os.environ.get("AEDI_BASE_URL", "").strip() or "https://integrate.api.nvidia.com/v1"
+# around without editing code: AEDI_MODEL=gemini-3.8-flash, etc.
+MODEL = os.environ.get("AEDI_MODEL", "").strip() or "gemini-3.8-flash"
 
 # ── Allowed value sets ────────────────────────────────────────────────────
 # `manual_review` is an abstention, not a class with its own precision/recall
@@ -116,7 +111,7 @@ wasting representment effort.
 weigh — this is an abstention, not a finding. Prefer this over guessing when signals conflict.
 
 evidence_sufficiency: sufficient / insufficient / not_enough_information — whether what was submitted \
-meets the MINIMUM_EVIDENCE_REQUIRED for this case's reason code. IMPORTANT: lookup_case_evidence returns \
+meets the MIGeminiUM_EVIDENCE_REQUIRED for this case's reason code. IMPORTANT: lookup_case_evidence returns \
 this already computed for you (evidence_sufficiency_precomputed, and missing_evidence_types if any) — \
 it is matched deterministically against the reason code's required evidence types, not a judgment call. \
 Copy that value into your output rather than re-deriving it from the descriptions yourself; the pipeline \
@@ -206,30 +201,29 @@ Return JSON only — no markdown fences, no extra keys."""
 
 
 class KeyPool:
-    """Round-robins across every NVIDIA_API_KEY / NVIDIA_API_KEY_2 / ... found in the
+    """Round-robins across every GEMINI_API_KEY / GEMINI_API_KEY_2 / ... found in the
     environment, spreading per-minute rate-limit load across all of them instead of
     hammering one key.
 
-    NVIDIA's free tier meters requests per minute against the account, so extra keys
-    minted from the SAME account share one allowance and buy nothing. Real headroom
-    only comes from keys on genuinely separate accounts — the same conclusion that
-    held for the previous provider, for the same reason: the limit is attached to the
-    account, not the credential. Ported as-is from the August Orchestrate build —
-    generic, no domain coupling."""
+    Gemini's free tier meters requests per minute against the project, so extra keys
+    minted from the SAME project share one allowance and buy nothing. Real headroom
+    only comes from keys on genuinely separate projects — the limit is attached to
+    the project, not the credential. Ported as-is from the August Orchestrate build
+    — generic, no domain coupling."""
 
     def __init__(self):
         keys = []
         for name, value in os.environ.items():
-            if re.fullmatch(r"NVIDIA_API_KEY(_\d+)?", name) and value:
+            if re.fullmatch(r"GEMINI_API_KEY(_\d+)?", name) and value:
                 keys.append((name, value))
         if not keys:
-            sys.exit("Error: no NVIDIA_API_KEY* found. Get a free key at https://build.nvidia.com")
+            sys.exit("Error: no GEMINI_API_KEY* found. Get a free key at https://aistudio.google.com/apikey")
         keys.sort(key=lambda kv: kv[0])
         self.names = [k for k, _ in keys]
-        self.clients = [OpenAI(api_key=v, base_url=NIM_BASE_URL) for _, v in keys]
+        self.clients = [GeminiClient(api_key=v) for _, v in keys]
         self._i = 0
         self._dead_until: dict = {}  # name -> unix ts when it's worth retrying
-        print(f"Key pool: {len(self.clients)} NVIDIA NIM key(s) - {', '.join(self.names)}")
+        print(f"Key pool: {len(self.clients)} Gemini key(s) - {', '.join(self.names)}")
 
     def next(self):
         now = time.time()
@@ -427,7 +421,7 @@ def build_messages(row: dict, ctx: dict) -> list:
 
 
 # ── Output-token budget, adaptive ─────────────────────────────────────────
-# NVIDIA NIM's free tier enforces an output-tokens-per-minute (OTPM) ceiling that can
+# Gemini's free tier enforces an output-tokens-per-minute (OTPM) ceiling that can
 # be LOWER than the per-request max_tokens this pipeline would otherwise ask
 # for. When that happens the API rejects the call with a 429 *before generating
 # anything*, and — unlike an ordinary rate limit — waiting does not help: an
@@ -446,32 +440,28 @@ ROUND_MAX_TOKENS = 1500       # info-gathering round
 CLASSIFY_MAX_TOKENS = 3800    # forced final round, needs room for the tool call
 
 # ── thinking ──────────────────────────────────────────────────────────────
-# Several NIM models reason before answering, and on those the output budget
-# pays for the thinking and the answer out of the same allowance. This
-# pipeline's final round is a forced call to one named function with a fixed
-# schema — there is no essay to write, and a model that spends 3,800 tokens
-# deliberating and then has nothing left to emit returns a 200 with an empty
-# message, which reaches the caller as a safe fallback with no visible cause.
+# Gemini's Flash models think before answering, and the thinking is billed
+# against the same response as the answer. This pipeline's final round is a
+# forced call to one named function with a fixed schema — there is no essay to
+# write, and a model that deliberates and then has nothing left to emit returns
+# an empty message, which reaches the caller as a safe fallback with no visible
+# cause.
 #
-# So thinking is OFF by default and every token goes to the tool call. Set
-# AEDI_ENABLE_THINKING=1 to turn it back on; the budget is raised at the same
-# time, because leaving it where it is guarantees the failure above.
-#
-# NVIDIA spells the switch `enable_thinking` inside chat_template_kwargs.
-# Models that do not reason ignore an unknown template kwarg, so it is safe to
-# send unconditionally.
+# So thinking is OFF by default: thinking_budget=0 is Gemini's explicit
+# disable. AEDI_ENABLE_THINKING=1 turns it back on and raises the output floor
+# at the same time, because switching it on without room guarantees the failure
+# above.
 ENABLE_THINKING = os.environ.get("AEDI_ENABLE_THINKING", "").strip().lower() in ("1", "true", "yes")
-THINKING_BUDGET = 16384
+THINKING_BUDGET = 8192
 
 
 def thinking_extra_body(enabled: bool = None) -> dict:
     """The extra_body for one request. `enabled=False` forces thinking off for
     a retry regardless of configuration."""
     on = ENABLE_THINKING if enabled is None else enabled
-    body = {"chat_template_kwargs": {"enable_thinking": on}}
-    if on:
-        body["reasoning_budget"] = THINKING_BUDGET
-    return body
+    return {"thinking_budget": THINKING_BUDGET if on else 0}
+
+
 MIN_USABLE_OUTPUT_TOKENS = 256
 
 _OTPM_RE = re.compile(r"output tokens per minute.{0,80}?Limit (\d+)", re.I | re.S)
@@ -539,7 +529,7 @@ def note_output_token_limit(err: str) -> bool:
               f"output tokens and is now capped at {new}. Long reasons may be truncated, and "
               f"this account can place roughly one call per minute. For an interactive demo "
               f"consider a model with a higher free-tier OTPM via AEDI_MODEL, or raise the "
-              f"limit at https://build.nvidia.com.", file=sys.stderr)
+              f"limit at https://aistudio.google.com/apikey.", file=sys.stderr)
     return True
 
 
@@ -554,7 +544,7 @@ def is_output_token_limit(err: str) -> bool:
 # and speech against one ceiling, so a small ceiling meant the budget was spent
 # before it said anything, and the failure arrived disguised as a schema error.
 #
-# NVIDIA NIM does not meter output tokens per minute, so the usual cause is
+# Gemini does not meter output tokens per minute, so the usual cause is
 # gone — but an empty completion is still possible, and it is still unfixable
 # by re-sending a longer prompt. The recovery path asks the model to skip
 # thinking and spend everything on the answer, then gives up rather than
@@ -573,7 +563,7 @@ _TOOL_USE_FAILED_RE = re.compile(r"tool_use_failed", re.I)
 def is_starved_tool_call(err: str) -> bool:
     """True for a tool_use_failed whose failed_generation is empty.
 
-    NVIDIA NIM reports two different things through tool_use_failed. If
+    Gemini reports two different things through tool_use_failed. If
     failed_generation carries text, the model answered and the answer merely
     failed the tool schema — recoverable, and _recover_failed_generation does
     exactly that. If it is empty, the model emitted nothing, which on a
@@ -745,9 +735,9 @@ def _execute_tool(name: str, ctx: dict) -> dict:
 
 
 def _normalize_response(response) -> dict:
-    """Normalizes an OpenAI-dialect response into a plain dict of {content,
-    tool_calls}, so the rest of the pipeline (and the cache) never touches
-    the SDK's response objects directly."""
+    """Normalizes an adapter response into a plain dict of {content,
+    tool_calls, reasoning}, so the rest of the pipeline — and, more
+    importantly, the cache — never stores an SDK object."""
     msg = response.choices[0].message
     return {
         "content": msg.content or "",
@@ -800,12 +790,12 @@ def _call_llm(pool: KeyPool, cache: ResponseCache, **kwargs) -> tuple:
 
 
 def _recover_failed_generation(exc: Exception):
-    """NVIDIA NIM's forced-tool_choice path sometimes rejects a call with 400
+    """Gemini's forced-tool_choice path sometimes rejects a call with 400
     tool_use_failed even though the model produced a complete, correctly
     shaped JSON answer as plain text — visible in the error body's
     failed_generation field. Recovers that answer instead of discarding a
     real result and burning a retry. Unwraps LLMCallError first since
-    the original NVIDIA NIM exception (with its .body attribute) is what
+    the original Gemini exception (with its .body attribute) is what
     actually carries this, not the wrapper."""
     original = exc.original if isinstance(exc, LLMCallError) else exc
     body = getattr(original, "body", None)
@@ -870,12 +860,10 @@ def _run_agent_turn(pool: KeyPool, cache: ResponseCache, base_messages: list, ct
             budget = output_token_budget(CLASSIFY_MAX_TOKENS if force_classify else ROUND_MAX_TOKENS)
             kwargs = dict(model=MODEL, messages=messages, temperature=0.1,
                           extra_body=thinking_extra_body(False if force_no_reasoning else None),
-                          # Plain max_tokens: NIM serves the OpenAI Chat Completions
-                          # dialect, where this is the output ceiling and nothing else.
-                          # The previous provider needed max_completion_tokens plus a
-                          # reasoning_format switch because its default model spent the
-                          # same budget thinking and speaking; that whole workaround is
-                          # gone with it.
+                          # The adapter maps this to Gemini's max_output_tokens.
+                          # It is the ceiling for the answer alone here, because
+                          # thinking is billed against its own budget and that
+                          # budget is zero unless someone turns it on.
                           max_tokens=budget)
             if force_classify:
                 kwargs["tools"] = [CLASSIFY_CHARGEBACK_TOOL]

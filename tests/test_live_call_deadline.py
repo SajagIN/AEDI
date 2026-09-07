@@ -64,7 +64,7 @@ def test_the_timeout_message_names_the_real_cause_and_the_ways_out(server, monke
     _, error = server.run_agent_bounded({"case_id": "x"}, {}, deadline=0.2)
     text = str(error)
 
-    assert "nim_doctor" in text, "the operator needs to be told how to diagnose it"
+    assert "gemini_doctor" in text, "the operator needs to be told how to diagnose it"
     assert "AEDI_MODEL" in text, "switching model is the fastest way out"
     assert "cache" in text.lower(), "explain why the retry will be quick"
 
@@ -84,7 +84,7 @@ def test_a_missing_key_still_surfaces_as_systemexit(server, monkeypatch):
     """analyze_case can sys.exit() when no key is configured. That must reach
     the route, which turns it into a 400 rather than a 504."""
     def no_key(*a, **k):
-        raise SystemExit("Error: no NVIDIA_API_KEY* found.")
+        raise SystemExit("Error: no GEMINI_API_KEY* found.")
 
     monkeypatch.setattr(server.pipeline, "analyze_case", no_key)
     _, error = server.run_agent_bounded({"case_id": "x"}, {})
@@ -145,7 +145,7 @@ def test_a_timed_out_live_analyze_returns_504_with_a_readable_body(server, monke
     assert resp.status_code == 504, "a stalled model is a gateway timeout, not a 500"
     assert elapsed < 5, "the route must not wait on the worker"
     body = resp.get_json()
-    assert body and "nim_doctor" in body.get("error", ""), (
+    assert body and "gemini_doctor" in body.get("error", ""), (
         "never fail a live call with an empty or unactionable body")
 
 
@@ -154,7 +154,7 @@ def test_a_live_call_without_a_key_is_still_a_400_not_a_504(server, monkeypatch)
     resp = server.app.test_client().post(
         "/api/analyze", json={"split": "held_out", "case_id": "cb_0142", "mode": "live"})
     assert resp.status_code == 400
-    assert "NVIDIA_API_KEY" in resp.get_json()["error"]
+    assert "GEMINI_API_KEY" in resp.get_json()["error"]
 
 
 def test_replay_mode_is_untouched_by_the_deadline(server, monkeypatch):

@@ -1,7 +1,7 @@
 """
 Disk-backed cache for LLM calls, keyed by a hash of the exact request.
 
-Why this exists: the August Orchestrate build hit NVIDIA NIM's free-tier daily
+Why this exists: the August Orchestrate build hit Gemini's free-tier daily
 token cap after roughly 19 real calls and lost hours to it. This dataset
 is ~150 cases x several evaluation re-runs, which
 will blow that cap repeatedly if every re-run re-calls the API. Caching by
