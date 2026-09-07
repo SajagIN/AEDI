@@ -60,7 +60,7 @@ export default function App() {
           Set like the head of a printed report: the wordmark in the serif,
           everything else in small monospace caps, all of it sitting on a
           hairline rule. */}
-      <header className="nm-raised sticky top-0 z-50 rounded-none border-0 frost">
+      <header className="nm-raised-lg sticky top-0 z-50 rounded-none border-0 frost">
         <div className="mx-auto max-w-[1400px] px-6">
           <div className="flex h-[68px] items-center gap-5">
             {/* The logo is gone: a 32px mark next to a four-letter wordmark was

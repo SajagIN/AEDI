@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Slider } from "@/components/ui/slider";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Ticker } from "@/components/figures";
@@ -129,17 +130,34 @@ export default function Overview({ split }: { split: string }) {
       <section className="reveal" style={{ "--i": 5 } as React.CSSProperties}>
         <div className="mb-12 flex flex-wrap items-end justify-between gap-6 border-t border-border pt-8">
           <h2 className="font-display text-[clamp(30px,4vw,44px)] leading-none">What this is worth</h2>
-          <div className="flex gap-3">
-            <label>
-              <div className="dateline mb-2 text-muted-foreground/50">Disputes / month</div>
-              <Input type="number" value={vol} min={1} step={100} className="h-9 w-28"
-                onChange={(e) => setVol(Math.max(1, +e.target.value || 0))} />
-            </label>
-            <label>
-              <div className="dateline mb-2 text-muted-foreground/50">Minutes / review</div>
-              <Input type="number" value={mins} min={1} className="h-9 w-24"
-                onChange={(e) => setMins(Math.max(1, +e.target.value || 0))} />
-            </label>
+          {/* Slider for the shape of the number, box for the exact one. The
+              slider is faster to demo with and the box is the only way to type
+              4,000 without dragging for it, so both drive the same state
+              rather than one replacing the other. */}
+          <div className="flex flex-wrap gap-8">
+            {([
+              { id: "vol", label: "Disputes / month", v: vol, set: setVol, min: 250, max: 20000, step: 250, w: "w-24" },
+              { id: "mins", label: "Minutes / review", v: mins, set: setMins, min: 1, max: 60, step: 1, w: "w-16" },
+            ] as const).map((c) => (
+              <div key={c.id} className="w-[230px]">
+                <label htmlFor={`proj-${c.id}`} className="dateline mb-2 block text-muted-foreground/50">
+                  {c.label}
+                </label>
+                <div className="flex items-center gap-3">
+                  <Slider
+                    aria-label={c.label}
+                    value={[Math.min(c.v, c.max)]}
+                    min={c.min} max={c.max} step={c.step}
+                    onValueChange={([n]) => c.set(n)}
+                  />
+                  <Input
+                    id={`proj-${c.id}`} type="number" value={c.v} min={1}
+                    className={`h-9 shrink-0 ${c.w} tnum`}
+                    onChange={(e) => c.set(Math.max(1, +e.target.value || 0))}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 

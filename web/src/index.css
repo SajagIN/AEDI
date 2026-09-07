@@ -199,20 +199,21 @@
      Raised: lit up-left, shadowed down-right, sitting on the sheet.
      Inset: the same two lights swapped, so the surface reads as pressed in.
      Both carry a hairline ring so the shape survives with shadows disabled. */
-  .nm-raised {
+  /* Elevation is one number. neumorphism-react exposes it as a `distance`
+     prop per component, which is the right idea in the wrong place — it puts
+     styling in JSX where no media query can reach it. Here it is a custom
+     property, so the same rule serves every height and the contrast fallbacks
+     below still apply to all of them. */
+  .nm-raised, .nm-raised-sm, .nm-raised-lg {
     background: hsl(var(--card));
     box-shadow:
-      -6px -6px 14px hsl(var(--nm-light) / .85),
-      6px 6px 16px hsl(var(--nm-dark) / .45),
+      calc(var(--nm-d, 6px) * -1) calc(var(--nm-d, 6px) * -1) calc(var(--nm-d, 6px) * 2.4) hsl(var(--nm-light) / .85),
+      var(--nm-d, 6px) var(--nm-d, 6px) calc(var(--nm-d, 6px) * 2.7) hsl(var(--nm-dark) / .45),
       0 0 0 1px hsl(var(--border) / .8);
   }
-  .nm-raised-sm {
-    background: hsl(var(--card));
-    box-shadow:
-      -3px -3px 7px hsl(var(--nm-light) / .8),
-      3px 3px 8px hsl(var(--nm-dark) / .4),
-      0 0 0 1px hsl(var(--border) / .8);
-  }
+  .nm-raised-sm { --nm-d: 3px; }
+  .nm-raised    { --nm-d: 6px; }
+  .nm-raised-lg { --nm-d: 10px; }
   .nm-inset {
     background: hsl(var(--card));
     box-shadow:
@@ -234,11 +235,11 @@
      would dissolve into one undifferentiated sheet. Give the shapes back as
      system-coloured borders. */
   @media (forced-colors: active) {
-    .nm-raised, .nm-raised-sm, .nm-inset { box-shadow: none; border: 1px solid CanvasText; }
+    .nm-raised, .nm-raised-sm, .nm-raised-lg, .nm-inset { box-shadow: none; border: 1px solid CanvasText; }
   }
   /* Asked for more contrast: drop the illusion, keep the structure. */
   @media (prefers-contrast: more) {
-    .nm-raised, .nm-raised-sm, .nm-inset {
+    .nm-raised, .nm-raised-sm, .nm-raised-lg, .nm-inset {
       box-shadow: none;
       border: 1px solid hsl(var(--foreground) / .5);
     }
