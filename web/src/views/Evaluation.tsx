@@ -121,7 +121,7 @@ export default function Evaluation({ health, split, setSplit }:
           ))}
         </Select>
         <span className="text-[12.5px] text-muted-foreground">{SPLIT_NOTE[split] ?? ""}</span>
-        <span className="dateline ml-auto text-muted-foreground/50">computed live · code/evaluation/main.py</span>
+        <span className="dateline ml-auto text-muted-foreground/50">computed live</span>
       </div>
 
       {/* Loading state matches the shape of the table it replaces, so the
@@ -136,9 +136,9 @@ export default function Evaluation({ health, split, setSplit }:
       {m && !m.available && (
         <Card><CardContent className="p-10 text-center">
           <p className="text-[13.5px] text-muted-foreground">{m.message}</p>
-          <code className="mt-3 inline-block rounded-lg bg-secondary px-3 py-2 font-mono text-[12px]">
-            python code/main.py --input dataset/{m.split}/cases.csv --output dataset/{m.split}/output.csv
-          </code>
+          <p className="mt-2 text-[12.5px] text-muted-foreground/70">
+            Run the pipeline over this split, then reload. The command is in the README.
+          </p>
         </CardContent></Card>
       )}
 

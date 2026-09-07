@@ -306,7 +306,8 @@ RAZORPAY_WEBHOOK_SECRET=your_key_here`}
                   {conn?.error || status?.reach_detail}
                 </p>
                 <p className="mt-3 text-[12px] text-muted-foreground">
-                  <code className="rounded bg-secondary px-1.5 py-0.5 font-mono">python scripts/razorpay_doctor.py</code>
+                  The repository ships a connection doctor that reports which of these
+                  five checks failed and why.
                 </p>
               </div>
             </div>

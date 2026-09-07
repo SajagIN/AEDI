@@ -14,62 +14,47 @@ import { Badge } from "@/components/ui/badge";
  *  info is deterministic and computed in code, alt is written by the model.
  *  Six info nodes, one alt node. The rail makes the ratio literal.
  *
- *  Every `where` below was read out of the source with grep before it was
- *  written down, because a citation nobody checked is worse than no citation.
+ *  One line each. These were three-paragraph entries with file-and-line
+ *  citations, which is a reference manual, not a diagram — nobody standing at
+ *  a demo reads a wall of text off a circle they just clicked.
  */
 type Stage = {
   id: string;
   n: string;
   short: string;
   title: string;
-  where: string;
   kind: "rule" | "model";
-  what: string;
-  rule: string;
+  line: string;
 };
 
 const STAGES: Stage[] = [
   {
-    id: "context", n: "01", short: "Context", title: "Assemble the case",
-    where: "code/main.py:289 · risk_signals.py:26", kind: "rule",
-    what: "Splits the pipe-separated evidence field into numbered items, then pulls the reason code's requirements and the merchant's 90-day history.",
-    rule: "Evidence gets IDs in file order — ev_1, ev_2, ev_3. The model may cite these IDs and no others. It cannot invent an ev_9 that was never submitted.",
+    id: "context", n: "01", short: "Context", title: "Assemble the case", kind: "rule",
+    line: "Numbers the submitted evidence and pulls the reason code's requirements. The model may cite those items and no others — it cannot invent one that was never submitted.",
   },
   {
-    id: "sufficiency", n: "02", short: "Sufficiency", title: "Is the evidence complete?",
-    where: "code/risk_signals.py:52", kind: "rule",
-    what: "A set difference between the evidence types the reason code requires and the types actually attached.",
-    rule: "Nothing submitted at all → not_enough_information. Some but not all required types → insufficient. Every required type present → sufficient. No model involvement: it is subtraction on two sets.",
+    id: "sufficiency", n: "02", short: "Sufficiency", title: "Is the evidence complete?", kind: "rule",
+    line: "Compares the evidence types the reason code demands against what was actually attached. Complete, partial, or nothing at all.",
   },
   {
-    id: "amount", n: "03", short: "Amount", title: "Does the amount match?",
-    where: "code/risk_signals.py:66", kind: "rule",
-    what: "Compares the disputed amount against the original transaction on file.",
-    rule: "Flagged if the dispute exceeds the original by more than ₹0.01, or differs from it by more than ₹0.01. A partial chargeback can never be larger than the transaction it came from. The tolerance is rounding slack, nothing more.",
+    id: "amount", n: "03", short: "Amount", title: "Does the amount match?", kind: "rule",
+    line: "Flags a dispute that does not match the original transaction. A partial chargeback can never be larger than the payment it came from.",
   },
   {
-    id: "merchant", n: "04", short: "Merchant", title: "Is this merchant a repeat?",
-    where: "code/risk_signals.py:80", kind: "rule",
-    what: "Reads the merchant's 90-day chargeback rate and their prior contest win rate together.",
-    rule: "chargeback_rate_90d > 0.6% AND prior_contest_win_rate < 0.4. Both, never either. A busy merchant with a good record is not a risk; a busy merchant who keeps losing contests is.",
+    id: "merchant", n: "04", short: "Merchant", title: "Is this merchant a repeat?", kind: "rule",
+    line: "Flags a high chargeback rate only when the merchant also loses most of the contests they file. Both conditions, never either alone.",
   },
   {
-    id: "agent", n: "05", short: "The agent", title: "Read the narrative",
-    where: "code/main.py:825", kind: "model",
-    what: "A bounded two-round tool loop. The only stage that reads free text — the merchant's written account and the evidence descriptions — and the only one that can judge whether the story matches the transaction or is trying to manipulate the reader.",
-    rule: "Tools always resolve against this case's pre-computed context, never against the identifiers the model passes in. A hallucinated or manipulated case_id cannot reach another merchant's record, because the argument is discarded before the lookup happens.",
+    id: "agent", n: "05", short: "The agent", title: "Read the narrative", kind: "model",
+    line: "The only stage that reads the merchant's written account, and the only one that can tell a true story from one built to mislead whoever reads it.",
   },
   {
-    id: "sanitize", n: "06", short: "Sanitize", title: "Coerce to the schema",
-    where: "code/main.py:618", kind: "rule",
-    what: "Takes whatever the model returned and forces it into the allowed shape before anything downstream sees it.",
-    rule: "A decision outside the allowed set becomes manual_review. Confidence is clamped to 0–1. Risk flags not on the allow-list are dropped. An unparseable answer fails toward a human, never toward an automated one.",
+    id: "sanitize", n: "06", short: "Sanitize", title: "Coerce to the schema", kind: "rule",
+    line: "Forces the answer into the allowed shape. Anything unparseable becomes a manual review — it fails toward a person, never toward an automated decision.",
   },
   {
-    id: "overrides", n: "07", short: "Overrides", title: "Overwrite the computable facts",
-    where: "code/main.py:659", kind: "rule",
-    what: "Replaces the model's answers about evidence sufficiency and the three mechanical flags with the values stages 02–04 already computed.",
-    rule: "If the rules and the model disagree about a fact that can be computed, the rules win — every time, with no appeal. Decision, injection detection, reason and confidence are left alone: those need a narrative read, which is the model's actual job.",
+    id: "overrides", n: "07", short: "Overrides", title: "Overwrite the computable facts", kind: "rule",
+    line: "Where the rules and the model disagree about a fact that can be computed, the rules win. Every time, with no appeal.",
   },
 ];
 
@@ -152,11 +137,7 @@ export function PipelineRail() {
             {shown.kind === "model" ? "written by the model" : "computed in code"}
           </Badge>
         </div>
-        <p className="mt-1.5 font-mono text-[10.5px] text-muted-foreground/70">{shown.where}</p>
-        <p className="mt-4 max-w-[74ch] text-[14px] leading-relaxed text-muted-foreground">{shown.what}</p>
-        <p className="mt-3 max-w-[74ch] border-l-2 border-border pl-4 text-[14px] leading-relaxed text-foreground">
-          {shown.rule}
-        </p>
+        <p className="mt-3 max-w-[76ch] text-[14.5px] leading-relaxed text-foreground">{shown.line}</p>
       </div>
     </section>
   );

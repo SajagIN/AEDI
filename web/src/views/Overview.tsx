@@ -200,9 +200,6 @@ export default function Overview({ split }: { split: string }) {
                 <p className="mt-1 text-[12.5px] text-muted-foreground">
                   A run that stopped early isn&rsquo;t a sample. Finish it, or switch splits.
                 </p>
-                <code className="mt-3 block overflow-x-auto rounded-lg border border-border bg-secondary p-3 font-mono text-[11px] text-foreground/85">
-                  python code/main.py --input dataset/{m?.split}/cases.csv --output dataset/{m?.split}/output.csv
-                </code>
               </div>
             </CardContent>
           </Card>

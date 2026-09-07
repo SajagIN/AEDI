@@ -200,7 +200,7 @@ export default function CaseExplorer({ health, split, setSplit }:
                     <TooltipTrigger asChild>
                       <span className="cursor-default border-b border-dashed border-border/60 pb-0.5">Deterministic risk signals</span>
                     </TooltipTrigger>
-                    <TooltipContent>Computed by risk_signals.py. The model never gets a vote on these.</TooltipContent>
+                    <TooltipContent>Computed in code before the model runs. The model never gets a vote on these.</TooltipContent>
                   </Tooltip>
                 </CardTitle>
               </CardHeader>
