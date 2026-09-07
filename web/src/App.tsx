@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { GridVignetteBackground } from "@/components/ui/vignette-grid-background";
 import { getHealth, type Health } from "@/lib/api";
 import Overview from "@/views/Overview";
 import CaseExplorer from "@/views/CaseExplorer";
@@ -40,6 +41,10 @@ export default function App() {
      sticky masthead) and the panels (which scroll), so it wraps the page. */
   return (
     <TooltipProvider delayDuration={150}>
+    {/* Ruled ground. Anchored to the top of the viewport and feathered out
+        downward, so the grid is densest behind the masthead and the hero and
+        has vanished by the time the reader reaches the numbers. */}
+    <GridVignetteBackground />
     <Tabs defaultValue="overview" className="min-h-screen">
       {/* ── masthead ──────────────────────────────────────────────────────
           Set like the head of a printed report: the wordmark in the serif,

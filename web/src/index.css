@@ -75,10 +75,12 @@
     /* Three layers of almost nothing. On white, atmosphere has to be built
        from tints a few percent deep — any stronger and it stops reading as
        light on a surface and starts reading as a coloured background. */
+    /* Two pools of light only. The grey band that used to sit here was doing
+       the same job as the grid vignette and washed it out, so it is gone —
+       structure now comes from the rules, atmosphere from these. */
     background-image:
-      radial-gradient(60rem 40rem at 8% -10%, rgba(0, 113, 227, 0.055), transparent 60%),
-      radial-gradient(52rem 36rem at 100% 0%, rgba(120, 140, 170, 0.07), transparent 58%),
-      linear-gradient(180deg, rgba(245, 246, 248, 0.9) 0%, rgba(255, 255, 255, 0) 38%);
+      radial-gradient(60rem 40rem at 8% -10%, rgba(0, 113, 227, 0.06), transparent 60%),
+      radial-gradient(52rem 36rem at 100% 0%, rgba(120, 140, 170, 0.075), transparent 58%);
     background-attachment: fixed;
     font-feature-settings: "ss01" 1, "ss02" 1;
     letter-spacing: -0.006em;
