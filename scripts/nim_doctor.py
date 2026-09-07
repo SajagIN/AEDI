@@ -13,9 +13,16 @@ first thing that breaks:
   2. does the endpoint accept it
   3. does the configured model exist and answer
   4. does it accept a tools array at all
-  5. does it accept the FORCED tool_choice the pipeline relies on
+  5. does it accept the FORCED tool_choice the pipeline relies on, with
+     thinking switched off the way the pipeline switches it off
 
-Step 5 is the one that usually bites. Plenty of models on the catalogue will
+Step 5 is the one that usually bites, and it fails two different ways. A model
+without real function-calling support answers a named tool_choice with prose. A
+reasoning model that ignores enable_thinking spends the whole allowance
+deliberating and returns an empty message — same symptom, opposite fix, and the
+doctor tells them apart by looking for reasoning_content.
+
+ Plenty of models on the catalogue will
 happily chat, and quite a few will even emit a tool call when they feel like
 it, but the pipeline does not ask nicely — the classification round forces
 tool_choice to a named function, and a model without real function-calling
@@ -135,20 +142,35 @@ def main():
         return 1
 
     # ── 5. the forced call the pipeline actually makes ───────────────────
+    # Thinking off, exactly as the pipeline sends it. On a reasoning model the
+    # same allowance pays for deliberation and for the answer, and a forced
+    # single-function call has no essay to write.
     try:
         r = client.chat.completions.create(
             model=model, max_tokens=256, temperature=0, tools=[PROBE_TOOL],
             tool_choice={"type": "function", "function": {"name": "classify_chargeback"}},
+            extra_body={"chat_template_kwargs": {"enable_thinking": False}},
             messages=[{"role": "user",
                        "content": "Evidence is complete and nothing is anomalous. Classify it."}])
         msg = r.choices[0].message
         calls = msg.tool_calls or []
+        reasoning = getattr(msg, "reasoning_content", None) or ""
         if not calls:
             print(f"{BAD} forced tool_choice returned NO tool call.")
-            print(f"       content was: {(msg.content or '')[:200]!r}")
-            print("       This is the failure you are seeing. The classification round")
-            print("       forces a named function and this model ignored it.")
-            print("       Fix: set AEDI_MODEL to a model with real function-calling support.")
+            print(f"       content was:   {(msg.content or '')[:160]!r}")
+            if reasoning:
+                print(f"       reasoning was: {reasoning[:160]!r}")
+                print(f"       finish reason: {r.choices[0].finish_reason}")
+                print("       This model reasoned instead of answering, and the budget went")
+                print("       with it. It ignored enable_thinking=false.")
+                print("       Fix: raise the budget so it can afford both —")
+                print("            AEDI_MAX_OUTPUT_TOKENS=16384  AEDI_ENABLE_THINKING=1")
+                print("       or pick a model that honours the switch.")
+            else:
+                print("       This is the failure behind the safe fallback. The")
+                print("       classification round forces a named function and this model")
+                print("       answered with prose instead.")
+                print("       Fix: set AEDI_MODEL to a model with real function-calling support.")
             return 1
         args_json = calls[0].function.arguments
         json.loads(args_json)

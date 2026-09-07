@@ -119,7 +119,7 @@ def test_a_starved_call_retries_without_thinking(main, monkeypatch):
     _turn(main, monkeypatch, boom)
 
     assert len(boom.calls) == 2
-    assert boom.calls[1]["extra_body"]["chat_template_kwargs"]["thinking"] is False, (
+    assert boom.calls[1]["extra_body"]["chat_template_kwargs"]["enable_thinking"] is False, (
         "the retry must free the budget for the answer, not repeat the request")
 
 
@@ -191,7 +191,8 @@ def test_no_reasoning_parameters_are_sent_on_the_happy_path(main, monkeypatch):
     boom = _Boom(STARVED, fails=0)
     _turn(main, monkeypatch, boom)
     assert "reasoning_effort" not in boom.calls[0]
-    assert "extra_body" not in boom.calls[0]
+    # extra_body carries exactly one thing: the thinking switch.
+    assert boom.calls[0]["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}
 
 
 # ── an unanswered case must not look like a decision ──────────────────────
@@ -218,8 +219,8 @@ def test_starvation_is_handled_in_the_first_round_too(main, monkeypatch):
     main._run_agent_turn(object(), object(), [{"role": "user", "content": "x"}], {},
                          max_rounds=2)
 
-    assert "extra_body" not in boom.calls[0]
-    assert boom.calls[1]["extra_body"]["chat_template_kwargs"]["thinking"] is False, (
+    assert boom.calls[0]["extra_body"]["chat_template_kwargs"]["enable_thinking"] is False
+    assert boom.calls[1]["extra_body"]["chat_template_kwargs"]["enable_thinking"] is False, (
         "round one must be able to ask for the answer without thinking, "
         "rather than waiting for round two")
 

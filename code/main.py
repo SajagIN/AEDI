@@ -444,6 +444,34 @@ def build_messages(row: dict, ctx: dict) -> list:
 # Pin it explicitly with AEDI_MAX_OUTPUT_TOKENS to skip discovery entirely.
 ROUND_MAX_TOKENS = 1500       # info-gathering round
 CLASSIFY_MAX_TOKENS = 3800    # forced final round, needs room for the tool call
+
+# ── thinking ──────────────────────────────────────────────────────────────
+# Several NIM models reason before answering, and on those the output budget
+# pays for the thinking and the answer out of the same allowance. This
+# pipeline's final round is a forced call to one named function with a fixed
+# schema — there is no essay to write, and a model that spends 3,800 tokens
+# deliberating and then has nothing left to emit returns a 200 with an empty
+# message, which reaches the caller as a safe fallback with no visible cause.
+#
+# So thinking is OFF by default and every token goes to the tool call. Set
+# AEDI_ENABLE_THINKING=1 to turn it back on; the budget is raised at the same
+# time, because leaving it where it is guarantees the failure above.
+#
+# NVIDIA spells the switch `enable_thinking` inside chat_template_kwargs.
+# Models that do not reason ignore an unknown template kwarg, so it is safe to
+# send unconditionally.
+ENABLE_THINKING = os.environ.get("AEDI_ENABLE_THINKING", "").strip().lower() in ("1", "true", "yes")
+THINKING_BUDGET = 16384
+
+
+def thinking_extra_body(enabled: bool = None) -> dict:
+    """The extra_body for one request. `enabled=False` forces thinking off for
+    a retry regardless of configuration."""
+    on = ENABLE_THINKING if enabled is None else enabled
+    body = {"chat_template_kwargs": {"enable_thinking": on}}
+    if on:
+        body["reasoning_budget"] = THINKING_BUDGET
+    return body
 MIN_USABLE_OUTPUT_TOKENS = 256
 
 _OTPM_RE = re.compile(r"output tokens per minute.{0,80}?Limit (\d+)", re.I | re.S)
@@ -463,8 +491,18 @@ def _initial_output_ceiling():
 _OUTPUT_TOKEN_CEILING = _initial_output_ceiling()
 
 
+def _thinking_floor(ask: int) -> int:
+    """With thinking on, the ask has to cover deliberation AND the answer."""
+    return max(ask, THINKING_BUDGET) if ENABLE_THINKING else ask
+
+
 def output_token_budget(requested: int) -> int:
-    """Clamp a max_tokens request to whatever this account has been shown to allow."""
+    """Clamp a max_tokens request to whatever this account has been shown to allow.
+
+    The ask is raised to the thinking floor first: with reasoning on, the same
+    allowance pays for deliberation and for the answer, and 3,800 tokens is not
+    enough for both."""
+    requested = _thinking_floor(requested)
     if _OUTPUT_TOKEN_CEILING is None:
         return requested
     return max(MIN_USABLE_OUTPUT_TOKENS, min(requested, _OUTPUT_TOKEN_CEILING))
@@ -714,6 +752,11 @@ def _normalize_response(response) -> dict:
     return {
         "content": msg.content or "",
         "tool_calls": [tc.model_dump() for tc in (msg.tool_calls or [])],
+        # Reasoning models return their deliberation here. It is never used as
+        # an answer — it is kept only so that "thought at length, then said
+        # nothing" is distinguishable from "returned nothing at all", which are
+        # different bugs with different fixes.
+        "reasoning": (getattr(msg, "reasoning_content", None) or "")[:400],
     }
 
 
@@ -826,6 +869,7 @@ def _run_agent_turn(pool: KeyPool, cache: ResponseCache, base_messages: list, ct
         for local_attempt in range(local_attempts):
             budget = output_token_budget(CLASSIFY_MAX_TOKENS if force_classify else ROUND_MAX_TOKENS)
             kwargs = dict(model=MODEL, messages=messages, temperature=0.1,
+                          extra_body=thinking_extra_body(False if force_no_reasoning else None),
                           # Plain max_tokens: NIM serves the OpenAI Chat Completions
                           # dialect, where this is the output ceiling and nothing else.
                           # The previous provider needed max_completion_tokens plus a
@@ -833,11 +877,6 @@ def _run_agent_turn(pool: KeyPool, cache: ResponseCache, base_messages: list, ct
                           # same budget thinking and speaking; that whole workaround is
                           # gone with it.
                           max_tokens=budget)
-            if force_no_reasoning:
-                # Only reached after an empty completion. Models on NIM that expose a
-                # thinking mode take it here; ones that do not ignore an unknown key,
-                # so this is safe to send unconditionally on the recovery path.
-                kwargs["extra_body"] = {"chat_template_kwargs": {"thinking": False}}
             if force_classify:
                 kwargs["tools"] = [CLASSIFY_CHARGEBACK_TOOL]
                 kwargs["tool_choice"] = {"type": "function", "function": {"name": "classify_chargeback"}}
