@@ -94,18 +94,26 @@ export default function Overview({ split }: { split: string }) {
               strokeColor="#0071E3" fillColor="hsl(var(--foreground))"
               minFontSize={44} maxFontSize={130} strokeWidth={0.9} drawDuration={1.3} />
           </span>
-          {/* One line, always. Twenty-three characters against the twelve
-              above them, so at equal size this line would run half again as
-              wide as the container — the size is set to match the two lines by
-              WIDTH — the string measures 9.387em in Lobster, read off the
-              shipped font file, so container/9.387 is the size that makes both
-              lines end at the same place. The calc reproduces that at every
-              viewport instead of guessing at breakpoints. No italic and no
-              bold here: Lobster ships one cut, and asking a browser to fake
-              either on a script face wrecks the connecting strokes. Weight
-              600 because a Didone at 400 is mostly hairline, and hairlines at
-              display size look like a rendering fault. */}
-          <span aria-hidden className="mt-3 block whitespace-nowrap font-script text-[clamp(20px,calc(10.65vw_-_5.11px),87px)] leading-[1.15] text-cobalt">
+          {/* One line, always, and sized so it ends where the line above it
+              ends. Twenty-three characters against twelve, so at equal size
+              this line would run half again as wide as the container. The
+              string measures 9.387em in Lobster, read off the shipped font
+              file, so container/9.387 is the size that lands both lines in the
+              same place; the calc reproduces that at every viewport instead of
+              guessing at breakpoints.
+
+              No italic and no bold — Lobster ships one 400 cut, and asking a
+              browser to fake either on a script face slants the connecting
+              strokes off their baseline and fills in the loops.
+
+              The negative top margin is not a nudge. Lobster reserves 0.287em
+              of empty ascent above the tallest ink in this string, measured
+              off the font, and line-height 1.15 returns 0.05em of that as
+              negative half-leading — so 0.237em of the gap was nothing but air
+              inside the font's own box. Pulling up 0.14em leaves about a tenth
+              of an em of real optical space. In em, not px, so it stays right
+              across the whole clamp rather than at one viewport width. */}
+          <span aria-hidden className="-mt-[.14em] block whitespace-nowrap font-script text-[clamp(20px,calc(10.65vw_-_5.11px),87px)] leading-[1.15] text-cobalt">
             answered with evidence.
           </span>
         </h1>

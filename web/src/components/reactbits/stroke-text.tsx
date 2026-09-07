@@ -112,12 +112,14 @@ export default function StrokeText({
       let bbox: DOMRect | undefined;
       try { bbox = strokeTextRef.current.getBBox(); } catch { return; }
       if (!bbox || !bbox.width) return;
-      /* Vertical padding keeps ascenders and descenders off the edge. The
-         horizontal pad is the stroke's own overhang and nothing more — pad the
-         sides by a tenth of the font size and, left-aligned, the word visibly
-         starts inboard of everything beneath it. */
+      /* Both pads are the stroke's own overhang and nothing more. The
+         viewBox IS the glyph bbox, so nothing can be clipped except the half
+         of the stroke that sits outside the outline — a tenth of the font
+         size on top of that is dead space, and on the vertical axis it opens
+         a visible trench between this line and whatever is set beneath it.
+         The horizontal axis was fixed earlier; this is the same bug. */
       const padX = strokeWidth;
-      const padY = fontSize * 0.1;
+      const padY = strokeWidth;
       const next = { x: bbox.x - padX, y: bbox.y - padY, width: bbox.width + padX * 2, height: bbox.height + padY * 2 };
       setBox((prev) =>
         prev && Math.abs(prev.x - next.x) < 0.5 && Math.abs(prev.width - next.width) < 0.5 && Math.abs(prev.y - next.y) < 0.5
@@ -177,7 +179,14 @@ export default function StrokeText({
     >
       <svg
         className="block w-full"
-        style={{ height: `${Math.round(fontSize * 1.22)}px` }}
+        /* Once the box is measured the svg takes the artwork's own aspect
+           ratio, so `meet` has nothing left to letterbox and the element
+           reserves exactly the height the glyphs occupy. Before the first
+           measurement there is nothing to derive it from, so it falls back to
+           a reserved height that keeps the page from jumping. */
+        style={box
+          ? { aspectRatio: `${box.width} / ${box.height}` }
+          : { height: `${Math.round(fontSize * 1.22)}px` }}
         viewBox={viewBox}
         preserveAspectRatio="xMinYMid meet"
         aria-hidden="true"
